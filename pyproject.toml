@@ -1,0 +1,44 @@
+[build-system]
+requires = ['setuptools', 'setuptools_scm']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'trame-radvolviz'
+requires-python = '>= 3.11'
+dynamic = ['version']
+dependencies = [
+  'trame',
+  'trame-vtk',
+  'trame-vuetify',
+  'trame-components',
+  'vtk',
+]
+
+authors = [
+  {name = 'Patrick Avery', email = 'patrick.avery@kitware.com'},
+  {name = 'Sankhesh Jhaveri', email = 'sankhesh.jhaveri@kitware.com'},
+  {name = 'Sebastien Jourdain', email = 'sebastien.jourdain@kitware.com'},
+]
+maintainers = [
+  {name = 'Patrick Avery', email = 'patrick.avery@kitware.com'},
+  {name = 'Sankhesh Jhaveri', email = 'sankhesh.jhaveri@kitware.com'},
+  {name = 'Sebastien Jourdain', email = 'sebastien.jourdain@kitware.com'},
+]
+description = 'RadVolViz interface for multivariate rendering with VTK'
+readme = 'README.md'
+license = {file = 'LICENSE'}
+keywords = ['web', 'trame', 'vtk', 'radvolviz', 'multivariate', 'volume']
+classifiers = [
+  'Development Status :: 4 - Beta',
+  'Intended Audience :: Developers',
+  'License :: OSI Approved :: Apache Software License',
+  'Programming Language :: Python :: 3',
+  'Programming Language :: Python :: 3.11',
+]
+
+[project.scripts]
+trame-radvolviz = 'trame_radvolviz.main:main'
+
+[tool.black]
+line-length = 79
+skip-string-normalization = true
