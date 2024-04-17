@@ -42,13 +42,6 @@ export function getData(nbSamples = 100) {
 }
 
 // ----------------------------------------------------------------------------
-// Convert to 2d hist
-// x, y: circular coordinate computed by GBC
-// data: [
-//   [x, y, ...headerValue],
-//   ...
-// ]
-// ----------------------------------------------------------------------------
 export function dataTopologyReduction(data, nbBins = 6) {
   // extract components coordinates
   const components = [];
@@ -127,7 +120,6 @@ export function computeGBC(datam, rotateRadianAngle) {
     GBCL[i] = new Array();
     for (j = 0; j < 2; j++) {
       GBCL[i][j] = 0;
-      // GBCL[i][2] = parseFloat(datam[i][0]);
     }
     for (k = 2; k < 2 + n; k++) {
       if (i < m) {
@@ -135,12 +127,6 @@ export function computeGBC(datam, rotateRadianAngle) {
       }
     }
   }
-  //   for i = 0; i<m; i++){
-  //   for(k=2;k<4;k++){
-  //     GBCL[i][k] = parseFloat(datam[i][k-2]);
-  //   }
-  // }
-  // console.log(GBCL);
 
   GBCL[m][0] = Math.cos(angle[0]);
   GBCL[m][1] = Math.sin(angle[0]);
@@ -175,7 +161,6 @@ export function computeGBC(datam, rotateRadianAngle) {
       for (var k = 0; k < n; k++) {
         GBCL[i][0] = GBCL[i][0] + (datam[i][k] / tempsum) * GBCL[m + k][0];
         GBCL[i][1] = GBCL[i][1] + (datam[i][k] / tempsum) * GBCL[m + k][1];
-        // console.log(k , datam[i][k] / tempsum);
       }
 
       var tempangle = Math.atan2(GBCL[i][1], GBCL[i][0]);
@@ -214,9 +199,5 @@ export function computeGBC(datam, rotateRadianAngle) {
     dimorder[i] = i;
   }
 
-  // for (var i = 0, j = 4)
-
   return GBCL;
 }
-
-// ----------------------------------------------------------------------------

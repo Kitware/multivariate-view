@@ -2,9 +2,6 @@ import * as d3 from "d3";
 
 const CANVAS_COLOR_MAP = document.createElement("canvas");
 
-// ----------------------------------------------------------------------------
-
-// ----------------------------------------------------------------------------
 export function colorConstrainInUnit(cx, cy) {
   const r = Math.sqrt(Math.pow(cx, 2) + Math.pow(cy, 2));
   if (r > 1) {
@@ -13,8 +10,6 @@ export function colorConstrainInUnit(cx, cy) {
   }
   return [cx, cy];
 }
-
-// ----------------------------------------------------------------------------
 
 function GBCtoHCL2(cx, cy) {
   if (cx * cx + cy * cy > 0.999999) {
@@ -37,14 +32,11 @@ function GBCtoHCL2(cx, cy) {
   return d3.hsl(h, s, l).toString();
 }
 
-// ----------------------------------------------------------------------------
-
 export function coordToColor(cx, cy) {
   [cx, cy] = colorConstrainInUnit(cx, cy);
   return GBCtoHCL2(cx, cy);
 }
 
-// ----------------------------------------------------------------------------
 export function computeColorMapImage(size, brushMode) {
   const diameter = Math.round(size * 2.4) / 3.1;
   const xyOffset = (size - diameter) * 0.5;
@@ -70,5 +62,3 @@ export function computeColorMapImage(size, brushMode) {
 
   return CANVAS_COLOR_MAP.toDataURL("image/png");
 }
-
-// ----------------------------------------------------------------------------
