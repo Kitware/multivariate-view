@@ -5,7 +5,7 @@ import { computeColorMapImage } from "../utils/colors";
 import { computeGBC, getData, dataTopologyReduction } from "../utils/compute";
 
 export default {
-  emits: ["click", "change"],
+  emits: ["lense"],
   props: {
     size: {
       type: Number,
@@ -30,9 +30,12 @@ export default {
       default: 6,
       help: "Side bin count for 2D histogram (grid = numberOfBins * numberOfBins)",
     },
+    showLense: {
+      type: Boolean,
+      default: true,
+    },
   },
   setup(props, { emit }) {
-    emit("created");
     const container = ref(null);
     const radRotationAngle = computed(() => props.rotation / 57.32);
     const dataToProcess = computed(() => getData(props.sampleSize));
@@ -54,7 +57,46 @@ export default {
       )
     );
 
-    const { size } = toRefs(props);
+    // Lense handling
+    const lenseRadius = ref(10);
+    const lenseLocation = ref([props.size * 0.5, props.size * 0.5]);
+    const lenseState = {
+      originLense: [0, 0],
+      originEvent: [0, 0],
+    };
+
+    function onMousePress(e) {
+      lenseState.drag = true;
+      lenseState.originLense = [...unref(lenseLocation)];
+      lenseState.originEvent = [e.clientX, e.clientY];
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseRelease);
+    }
+
+    function onMouseMove(e) {
+      let x = lenseState.originLense[0] + e.clientX - lenseState.originEvent[0];
+      let y = lenseState.originLense[1] + e.clientY - lenseState.originEvent[1];
+
+      // Keep x,y in circle
+      const cx = x - 0.5 * props.size;
+      const cy = y - 0.5 * props.size;
+      const r = Math.sqrt(cx * cx + cy * cy);
+      const maxR = unref(diameter) * 0.5;
+      if (r > maxR) {
+        const ratio = maxR / r;
+        x = 0.5 * props.size + cx * ratio;
+        y = 0.5 * props.size + cy * ratio;
+      }
+
+      lenseLocation.value = [x, y];
+      emit("lense", { x, y, r: unref(lenseRadius), s: props.size });
+    }
+    function onMouseRelease() {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseRelease);
+    }
+
+    const { size, showLense } = toRefs(props);
     return {
       container,
       size,
@@ -62,6 +104,10 @@ export default {
       dataToDraw,
       scaleGBC,
       dataToProcess,
+      showLense,
+      lenseRadius,
+      lenseLocation,
+      onMousePress,
     };
   },
   template: `
@@ -102,6 +148,18 @@ export default {
               </text>
             </g>
 
+            <circle
+              v-if="showLense"
+              :cx="lenseLocation[0]"
+              :cy="lenseLocation[1]"
+              :r="lenseRadius"
+              fill="none"
+              opacity="0.5"
+              stroke="red"
+              stroke-width="10"
+              stroke-opacity="0.9"
+              @mousedown="onMousePress"
+            />
           </svg>
         </div>
   `,
