@@ -4,7 +4,7 @@ build-backend = 'setuptools.build_meta'
 
 [project]
 name = 'trame-radvolviz'
-requires-python = '>= 3.11'
+requires-python = '>= 3.10'
 dynamic = ['version']
 dependencies = [
   'trame',
@@ -35,6 +35,12 @@ classifiers = [
   'Programming Language :: Python :: 3',
   'Programming Language :: Python :: 3.11',
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+trame_radvolviz = ["module/serve/*.js"]
 
 [project.scripts]
 trame-radvolviz = 'trame_radvolviz.main:main'

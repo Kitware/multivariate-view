@@ -1,5 +1,3 @@
-import rawCSV from "../data/data10.csv?raw";
-
 // ----------------------------------------------------------------------------
 // Helper local methods
 // ----------------------------------------------------------------------------
@@ -22,24 +20,24 @@ function clamp(v, min, max) {
 // ----------------------------------------------------------------------------
 // Format data in a specific fashion
 // ----------------------------------------------------------------------------
-export function getData(nbSamples = 100) {
-  const allLines = rawCSV.split(/\r\n|\n/);
-  const header = allLines[0].split(",");
-  const data = [];
-  const sampleSize = Math.min(nbSamples, allLines.length - 1);
+// export function getData(nbSamples = 100) {
+//   const allLines = rawCSV.split(/\r\n|\n/);
+//   const header = allLines[0].split(",");
+//   const data = [];
+//   const sampleSize = Math.min(nbSamples, allLines.length - 1);
 
-  for (let i = 1; i <= sampleSize; i++) {
-    const entry = allLines[i].split(",").map(Number);
-    console.log("Data entry size", entry.length);
-    data.push(entry);
-  }
-  // header: ['Ce','Co','Fe','Gd']
-  // data: [
-  //   [0.266, 0.266, 0.384, 0.082],
-  //   ...
-  // ]
-  return { header, data };
-}
+//   for (let i = 1; i <= sampleSize; i++) {
+//     const entry = allLines[i].split(",").map(Number);
+//     console.log("Data entry size", entry.length);
+//     data.push(entry);
+//   }
+//   // header: ['Ce','Co','Fe','Gd']
+//   // data: [
+//   //   [0.266, 0.266, 0.384, 0.082],
+//   //   ...
+//   // ]
+//   return { header, data };
+// }
 
 // ----------------------------------------------------------------------------
 export function dataTopologyReduction(data, nbBins = 6) {

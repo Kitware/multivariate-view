@@ -1,8 +1,8 @@
-import { ref, unref, toRefs, computed } from "Vue";
 import * as d3 from "d3";
-
 import { computeColorMapImage } from "../utils/colors";
-import { computeGBC, getData, dataTopologyReduction } from "../utils/compute";
+import { computeGBC, dataTopologyReduction } from "../utils/compute";
+
+const { ref, unref, toRefs, computed, watch } = window.Vue;
 
 export default {
   emits: ["lense"],
@@ -34,11 +34,24 @@ export default {
       type: Boolean,
       default: true,
     },
+    lenseRadius: {
+      type: Number,
+      default: 10,
+    },
+    data: {
+      type: Array,
+    },
+    components: {
+      type: Array,
+    },
   },
   setup(props, { emit }) {
     const container = ref(null);
     const radRotationAngle = computed(() => props.rotation / 57.32);
-    const dataToProcess = computed(() => getData(props.sampleSize));
+    const dataToProcess = computed(() => ({
+      header: props.components,
+      data: props.data.slice(0, props.sampleSize),
+    }));
     const gbcData = computed(() =>
       computeGBC(unref(dataToProcess).data, unref(radRotationAngle))
     );
@@ -58,8 +71,7 @@ export default {
     );
 
     // Lense handling
-    const lenseRadius = ref(10);
-    const lenseLocation = ref([props.size * 0.5, props.size * 0.5]);
+    const lenseLocation = ref([0, 0]);
     const lenseState = {
       originLense: [0, 0],
       originEvent: [0, 0],
@@ -73,22 +85,26 @@ export default {
       document.addEventListener("mouseup", onMouseRelease);
     }
 
+    function keepLenseInside(xy) {
+      const r = Math.sqrt(xy[0] * xy[0] + xy[1] * xy[1]);
+      const maxR = unref(diameter) * 0.5;
+      if (r > maxR) {
+        const ratio = maxR / r;
+        xy[0] *= ratio;
+        xy[1] *= ratio;
+      }
+      return xy;
+    }
+
     function onMouseMove(e) {
       let x = lenseState.originLense[0] + e.clientX - lenseState.originEvent[0];
       let y = lenseState.originLense[1] + e.clientY - lenseState.originEvent[1];
 
       // Keep x,y in circle
-      const cx = x - 0.5 * props.size;
-      const cy = y - 0.5 * props.size;
-      const r = Math.sqrt(cx * cx + cy * cy);
-      const maxR = unref(diameter) * 0.5;
-      if (r > maxR) {
-        const ratio = maxR / r;
-        x = 0.5 * props.size + cx * ratio;
-        y = 0.5 * props.size + cy * ratio;
-      }
+      const newLoc = [x, y];
+      keepLenseInside(newLoc);
 
-      lenseLocation.value = [x, y];
+      lenseLocation.value = newLoc;
       emit("lense", { x, y, r: unref(lenseRadius), s: props.size });
     }
     function onMouseRelease() {
@@ -96,7 +112,14 @@ export default {
       document.removeEventListener("mouseup", onMouseRelease);
     }
 
-    const { size, showLense } = toRefs(props);
+    watch(
+      () => props.size,
+      () => {
+        lenseLocation.value = keepLenseInside([...lenseLocation.value]);
+      }
+    );
+
+    const { size, showLense, lenseRadius } = toRefs(props);
     return {
       container,
       size,
@@ -117,7 +140,7 @@ export default {
 
             <g fill="#fff" stroke="black" stroke-opacity="0.5">
               <circle 
-                :key="i" 
+                :key="'scatter-' + i" 
                 v-for="d, i in dataToDraw.q"
                 :cx="scaleGBC(d[0])"
                 :cy="scaleGBC(d[1])"
@@ -127,7 +150,7 @@ export default {
 
             <g fill="#C7D9E8" stroke="#333">
               <circle 
-                :key="i" 
+                :key="'component-' + i" 
                 v-for="d, i in dataToDraw.components"
                 :cx="scaleGBC(d[0] * 0.997)"
                 :cy="scaleGBC(d[1] * 0.997)"
@@ -137,7 +160,7 @@ export default {
 
             <g font-size="30px" fill="#666" stroke="#111" stroke-opacity="1" opacity="1" style="user-select: none;">
               <text 
-                :key="i" 
+                :key="'label-' + i" 
                 v-for="d, i in dataToDraw.components"
                 :x="scaleGBC(d[0] * 0.997)"
                 :y="scaleGBC(d[1] * 0.997)"
@@ -150,10 +173,10 @@ export default {
 
             <circle
               v-if="showLense"
-              :cx="lenseLocation[0]"
-              :cy="lenseLocation[1]"
+              :cx="0.5 * size + lenseLocation[0]"
+              :cy="0.5 * size + lenseLocation[1]"
               :r="lenseRadius"
-              fill="none"
+              fill="rgba(255, 255, 255, 0.2)"
               opacity="0.5"
               stroke="red"
               stroke-width="10"
