@@ -40,16 +40,7 @@ function clamp(v, min, max) {
 // }
 
 // ----------------------------------------------------------------------------
-export function dataTopologyReduction(inputData, nbBins = 6) {
-  // Make a copy so we don't modify the original
-  const data = [...inputData];
-
-  // extract components coordinates
-  const components = [];
-  while (data[0].length !== data[data.length - 1].length) {
-    components.unshift(data.pop());
-  }
-
+export function dataTopologyReduction(data, components, nbBins = 6) {
   // Create data structure
   const bins = [];
   const binMap = {};
@@ -109,35 +100,29 @@ export function dataTopologyReduction(inputData, nbBins = 6) {
 // The last nth correspond to the location of headers
 // ----------------------------------------------------------------------------
 export function computeGBC(datam, rotateRadianAngle) {
+  // Compute dimensions
   const m = datam.length; // nb points
   const n = datam[0].length; // nb vars
 
+  // Compute angles and components
   const angle = new Array(n);
   angle[0] = Math.PI / 2 + rotateRadianAngle;
 
-  var GBCL = new Array();
-
-  for (i = 0; i < m + n; i++) {
-    GBCL[i] = new Array();
-    for (j = 0; j < 2; j++) {
-      GBCL[i][j] = 0;
-    }
-    for (k = 2; k < 2 + n; k++) {
-      if (i < m) {
-        GBCL[i][k] = parseFloat(datam[i][k - 2]);
-      }
-    }
+  var components = new Array();
+  for (i = 0; i < n; i++) {
+    components[i] = new Array();
   }
 
-  GBCL[m][0] = Math.cos(angle[0]);
-  GBCL[m][1] = Math.sin(angle[0]);
+  components[0][0] = Math.cos(angle[0]);
+  components[0][1] = Math.sin(angle[0]);
 
   for (let i = 1; i < n; i++) {
     angle[i] = angle[i - 1] - (2 * Math.PI) / n;
-    GBCL[m + i][0] = Math.cos(angle[i]) * 0.997;
-    GBCL[m + i][1] = Math.sin(angle[i]) * 0.997;
+    components[i][0] = Math.cos(angle[i]) * 0.997;
+    components[i][1] = Math.sin(angle[i]) * 0.997;
   }
 
+  // Wrap angles to be between 0 and 2*pi
   for (let i = 0; i < n; i++) {
     if (angle[i] < 0) {
       angle[i] = angle[i] + Math.PI * 2;
@@ -146,9 +131,21 @@ export function computeGBC(datam, rotateRadianAngle) {
       angle[i] = angle[i] - Math.PI * 2;
     }
   }
-
   angle.sort();
 
+  // Initialize GBCL
+  var GBCL = new Array();
+  for (i = 0; i < m; i++) {
+    GBCL[i] = new Array();
+    for (j = 0; j < 2; j++) {
+      GBCL[i][j] = 0;
+    }
+    for (k = 2; k < 2 + n; k++) {
+      GBCL[i][k] = parseFloat(datam[i][k - 2]);
+    }
+  }
+
+  // Compute GBCL
   for (var i = 0; i < m; i++) {
     var tempsum = 0;
     for (var j = 0; j < n; j++) {
@@ -160,8 +157,8 @@ export function computeGBC(datam, rotateRadianAngle) {
       GBCL[i][1] = 0;
     } else {
       for (var k = 0; k < n; k++) {
-        GBCL[i][0] = GBCL[i][0] + (datam[i][k] / tempsum) * GBCL[m + k][0];
-        GBCL[i][1] = GBCL[i][1] + (datam[i][k] / tempsum) * GBCL[m + k][1];
+        GBCL[i][0] = GBCL[i][0] + (datam[i][k] / tempsum) * components[k][0];
+        GBCL[i][1] = GBCL[i][1] + (datam[i][k] / tempsum) * components[k][1];
       }
 
       var tempangle = Math.atan2(GBCL[i][1], GBCL[i][0]);
@@ -195,10 +192,5 @@ export function computeGBC(datam, rotateRadianAngle) {
     }
   }
 
-  var dimorder = new Array(n);
-  for (let i = 0; i < n; i++) {
-    dimorder[i] = i;
-  }
-
-  return GBCL;
+  return { GBCL, components };
 }

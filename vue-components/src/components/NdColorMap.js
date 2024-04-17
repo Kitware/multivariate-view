@@ -56,7 +56,8 @@ export default {
       computeGBC(unref(dataToProcess).data, unref(radRotationAngle))
     );
     const dataToDraw = computed(() =>
-      dataTopologyReduction(unref(gbcData), props.numberOfBins)
+      dataTopologyReduction(unref(gbcData).GBCL, unref(gbcData).components,
+                            props.numberOfBins)
     );
     const bgImage = computed(() =>
       computeColorMapImage(props.size, props.brushMode)
