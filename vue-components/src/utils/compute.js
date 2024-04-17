@@ -109,7 +109,7 @@ export function computeGBC(datam, rotateRadianAngle) {
   angle[0] = Math.PI / 2 + rotateRadianAngle;
 
   var components = new Array();
-  for (i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     components[i] = new Array();
   }
 
@@ -133,63 +133,57 @@ export function computeGBC(datam, rotateRadianAngle) {
   }
   angle.sort();
 
-  // Initialize GBCL
+  // Compute GBCL
   var GBCL = new Array();
   for (i = 0; i < m; i++) {
     GBCL[i] = new Array();
     for (j = 0; j < 2; j++) {
       GBCL[i][j] = 0;
     }
-    for (k = 2; k < 2 + n; k++) {
-      GBCL[i][k] = parseFloat(datam[i][k - 2]);
-    }
-  }
 
-  // Compute GBCL
-  for (var i = 0; i < m; i++) {
     var tempsum = 0;
     for (var j = 0; j < n; j++) {
       tempsum = tempsum + parseFloat(datam[i][j]);
     }
 
     if (tempsum == 0) {
-      GBCL[i][0] = 0;
-      GBCL[i][1] = 0;
-    } else {
-      for (var k = 0; k < n; k++) {
-        GBCL[i][0] = GBCL[i][0] + (datam[i][k] / tempsum) * components[k][0];
-        GBCL[i][1] = GBCL[i][1] + (datam[i][k] / tempsum) * components[k][1];
-      }
-
-      var tempangle = Math.atan2(GBCL[i][1], GBCL[i][0]);
-      if (tempangle < 0) {
-        tempangle = tempangle + Math.PI * 2;
-      }
-      var flag = false;
-      var tempA = 0;
-      var tempB = 0;
-      for (let j = 0; j < n - 1; j++) {
-        if (
-          (tempangle > angle[j] || tempangle == angle[j]) &&
-          tempangle < angle[j + 1]
-        ) {
-          tempA = angle[j + 1];
-          tempB = angle[j];
-          flag = true;
-        }
-        if (flag == true) break;
-      }
-      if (flag == false) {
-        tempA = angle[0] + Math.PI * 2;
-        tempB = angle[n - 1];
-      }
-      var lth =
-        (Math.sqrt(GBCL[i][0] * GBCL[i][0] + GBCL[i][1] * GBCL[i][1]) /
-          Math.cos((tempA - tempB) / 2)) *
-        Math.cos(-(tempA + tempB) / 2 + tempangle);
-      GBCL[i][0] = lth * Math.cos(tempangle);
-      GBCL[i][1] = lth * Math.sin(tempangle);
+      // Leave it as 0
+      continue;
     }
+
+    for (var k = 0; k < n; k++) {
+      GBCL[i][0] = GBCL[i][0] + (datam[i][k] / tempsum) * components[k][0];
+      GBCL[i][1] = GBCL[i][1] + (datam[i][k] / tempsum) * components[k][1];
+    }
+
+    var tempangle = Math.atan2(GBCL[i][1], GBCL[i][0]);
+    if (tempangle < 0) {
+      tempangle = tempangle + Math.PI * 2;
+    }
+    var flag = false;
+    var tempA = 0;
+    var tempB = 0;
+    for (let j = 0; j < n - 1; j++) {
+      if (
+        (tempangle > angle[j] || tempangle == angle[j]) &&
+        tempangle < angle[j + 1]
+      ) {
+        tempA = angle[j + 1];
+        tempB = angle[j];
+        flag = true;
+      }
+      if (flag == true) break;
+    }
+    if (flag == false) {
+      tempA = angle[0] + Math.PI * 2;
+      tempB = angle[n - 1];
+    }
+    var lth =
+      (Math.sqrt(GBCL[i][0] * GBCL[i][0] + GBCL[i][1] * GBCL[i][1]) /
+        Math.cos((tempA - tempB) / 2)) *
+      Math.cos(-(tempA + tempB) / 2 + tempangle);
+    GBCL[i][0] = lth * Math.cos(tempangle);
+    GBCL[i][1] = lth * Math.sin(tempangle);
   }
 
   return { GBCL, components };
