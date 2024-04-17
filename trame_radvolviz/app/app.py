@@ -11,7 +11,7 @@ DATA_FILE = Path(__file__).parent.parent.parent / "data/data10.csv"
 
 
 @TrameApp()
-class TestApp:
+class App:
     def __init__(self, server=None):
         self.server = get_server(server, client_type="vue3")
         self.load_data()
@@ -118,12 +118,3 @@ class TestApp:
                     lens_radius=("w_lradius", 10),
                     lens="lens_data = $event",
                 )
-
-
-def main():
-    app = TestApp()
-    app.server.start()
-
-
-if __name__ == "__main__":
-    main()

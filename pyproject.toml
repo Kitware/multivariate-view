@@ -43,7 +43,7 @@ where = ["."]
 trame_radvolviz = ["module/serve/*.js"]
 
 [project.scripts]
-trame-radvolviz = 'trame_radvolviz.main:main'
+trame-radvolviz = 'trame_radvolviz.app.main:main'
 
 [tool.black]
 line-length = 79
