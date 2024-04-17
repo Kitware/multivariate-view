@@ -24,9 +24,9 @@ class NdColorMap(HtmlElement):
             ("brush_mode", "brushMode"),
             ("sample_size", "sampleSize"),
             ("number_of_bins", "numberOfBins"),
-            ("show_lense", "showLense"),
-            ("lense_radius", "lenseRadius"),
+            ("show_lens", "showLens"),
+            ("lens_radius", "lensRadius"),
         ]
         self._event_names += [
-            "lense",
+            "lens",
         ]

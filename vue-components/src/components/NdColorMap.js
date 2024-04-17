@@ -5,7 +5,7 @@ import { computeGBC, dataTopologyReduction } from "../utils/compute";
 const { ref, unref, toRefs, computed, watch } = window.Vue;
 
 export default {
-  emits: ["lense"],
+  emits: ["lens"],
   props: {
     size: {
       type: Number,
@@ -30,11 +30,11 @@ export default {
       default: 6,
       help: "Side bin count for 2D histogram (grid = numberOfBins * numberOfBins)",
     },
-    showLense: {
+    showLens: {
       type: Boolean,
       default: true,
     },
-    lenseRadius: {
+    lensRadius: {
       type: Number,
       default: 10,
     },
@@ -70,22 +70,22 @@ export default {
       )
     );
 
-    // Lense handling
-    const lenseLocation = ref([0, 0]);
-    const lenseState = {
-      originLense: [0, 0],
+    // Lens handling
+    const lensLocation = ref([0, 0]);
+    const lensState = {
+      originLens: [0, 0],
       originEvent: [0, 0],
     };
 
     function onMousePress(e) {
-      lenseState.drag = true;
-      lenseState.originLense = [...unref(lenseLocation)];
-      lenseState.originEvent = [e.clientX, e.clientY];
+      lensState.drag = true;
+      lensState.originLens = [...unref(lensLocation)];
+      lensState.originEvent = [e.clientX, e.clientY];
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseRelease);
     }
 
-    function keepLenseInside(xy) {
+    function keepLensInside(xy) {
       const r = Math.sqrt(xy[0] * xy[0] + xy[1] * xy[1]);
       const maxR = unref(diameter) * 0.5;
       if (r > maxR) {
@@ -97,15 +97,15 @@ export default {
     }
 
     function onMouseMove(e) {
-      let x = lenseState.originLense[0] + e.clientX - lenseState.originEvent[0];
-      let y = lenseState.originLense[1] + e.clientY - lenseState.originEvent[1];
+      let x = lensState.originLens[0] + e.clientX - lensState.originEvent[0];
+      let y = lensState.originLens[1] + e.clientY - lensState.originEvent[1];
 
       // Keep x,y in circle
       const newLoc = [x, y];
-      keepLenseInside(newLoc);
+      keepLensInside(newLoc);
 
-      lenseLocation.value = newLoc;
-      emit("lense", { x, y, r: unref(lenseRadius), s: props.size });
+      lensLocation.value = newLoc;
+      emit("lens", { x, y, r: unref(lensRadius), s: props.size });
     }
     function onMouseRelease() {
       document.removeEventListener("mousemove", onMouseMove);
@@ -115,11 +115,11 @@ export default {
     watch(
       () => props.size,
       () => {
-        lenseLocation.value = keepLenseInside([...lenseLocation.value]);
+        lensLocation.value = keepLensInside([...lensLocation.value]);
       }
     );
 
-    const { size, showLense, lenseRadius } = toRefs(props);
+    const { size, showLens, lensRadius } = toRefs(props);
     return {
       container,
       size,
@@ -127,9 +127,9 @@ export default {
       dataToDraw,
       scaleGBC,
       dataToProcess,
-      showLense,
-      lenseRadius,
-      lenseLocation,
+      showLens,
+      lensRadius,
+      lensLocation,
       onMousePress,
     };
   },
@@ -139,8 +139,8 @@ export default {
             <image :href="bgImage" x="0" y="0" :width="size" :height="size" />
 
             <g fill="#fff" stroke="black" stroke-opacity="0.5">
-              <circle 
-                :key="'scatter-' + i" 
+              <circle
+                :key="'scatter-' + i"
                 v-for="d, i in dataToDraw.q"
                 :cx="scaleGBC(d[0])"
                 :cy="scaleGBC(d[1])"
@@ -149,8 +149,8 @@ export default {
             </g>
 
             <g fill="#C7D9E8" stroke="#333">
-              <circle 
-                :key="'component-' + i" 
+              <circle
+                :key="'component-' + i"
                 v-for="d, i in dataToDraw.components"
                 :cx="scaleGBC(d[0] * 0.997)"
                 :cy="scaleGBC(d[1] * 0.997)"
@@ -159,8 +159,8 @@ export default {
             </g>
 
             <g font-size="30px" fill="#666" stroke="#111" stroke-opacity="1" opacity="1" style="user-select: none;">
-              <text 
-                :key="'label-' + i" 
+              <text
+                :key="'label-' + i"
                 v-for="d, i in dataToDraw.components"
                 :x="scaleGBC(d[0] * 0.997)"
                 :y="scaleGBC(d[1] * 0.997)"
@@ -172,10 +172,10 @@ export default {
             </g>
 
             <circle
-              v-if="showLense"
-              :cx="0.5 * size + lenseLocation[0]"
-              :cy="0.5 * size + lenseLocation[1]"
-              :r="lenseRadius"
+              v-if="showLens"
+              :cx="0.5 * size + lensLocation[0]"
+              :cy="0.5 * size + lensLocation[1]"
+              :r="lensRadius"
               fill="rgba(255, 255, 255, 0.2)"
               opacity="0.5"
               stroke="red"

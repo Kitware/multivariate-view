@@ -37,12 +37,12 @@ class TestApp:
     def state(self):
         return self.server.state
 
-    @change("lense_data")
-    def update_opacity(self, lense_data, **kwargs):
-        print(f"{lense_data=}")
+    @change("lens_data")
+    def update_opacity(self, lens_data, **kwargs):
+        print(f"{lens_data=}")
 
     def _build_ui(self):
-        self.state.setdefault("lense_data", None)
+        self.state.setdefault("lens_data", None)
 
         with SinglePageWithDrawerLayout(
             self.server, full_height=True
@@ -51,7 +51,7 @@ class TestApp:
                 v.VAppBarNavIcon(click="main_drawer = !main_drawer")
                 v.VAppBarTitle("RadVolViz")
                 v.VSpacer()
-                html.Div("{{ lense_data }}")
+                html.Div("{{ lens_data }}")
 
             with layout.drawer as drawer:
                 drawer.width = 400
@@ -93,11 +93,11 @@ class TestApp:
                     hide_details=True,
                 )
                 v.VSwitch(
-                    label="Lense",
-                    v_model="w_lense",
+                    label="Lens",
+                    v_model="w_lens",
                 )
                 v.VSlider(
-                    label="Lense radius",
+                    label="Lens radius",
                     v_model="w_lradius",
                     min=5,
                     max=100,
@@ -114,9 +114,9 @@ class TestApp:
                     rotation=("w_rotation", 0),
                     sample_size=("w_sample_size", 100),
                     number_of_bins=("w_bins", 6),
-                    show_lense=("w_lense", False),
-                    lense_radius=("w_lradius", 10),
-                    lense="lense_data = $event",
+                    show_lens=("w_lens", False),
+                    lens_radius=("w_lradius", 10),
+                    lens="lens_data = $event",
                 )
 
 
