@@ -40,7 +40,10 @@ function clamp(v, min, max) {
 // }
 
 // ----------------------------------------------------------------------------
-export function dataTopologyReduction(data, nbBins = 6) {
+export function dataTopologyReduction(inputData, nbBins = 6) {
+  // Make a copy so we don't modify the original
+  const data = [...inputData];
+
   // extract components coordinates
   const components = [];
   while (data[0].length !== data[data.length - 1].length) {
