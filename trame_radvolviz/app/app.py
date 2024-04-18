@@ -7,6 +7,8 @@ from trame.ui.vuetify3 import SinglePageWithDrawerLayout
 from trame.widgets import vuetify3 as v, html
 from trame_radvolviz.widgets import radvolviz
 
+from .io import load_csv_dataset
+
 DATA_FILE = Path(__file__).parent.parent.parent / "data/data10.csv"
 
 
@@ -18,20 +20,20 @@ class App:
         self.ui = self._build_ui()
 
     def load_data(self):
-        header = None
-        data = []
-        with DATA_FILE.open(newline='') as csv_file:
-            for row in csv.reader(csv_file, delimiter=","):
-                if header is None:
-                    header = row
-                else:
-                    data.append(list(map(float, row)))
-
-        print(f"{header=}")
-        print(f"{data[:3]=}")
+        header, data = load_csv_dataset(DATA_FILE)
 
         self.state.components = header
-        self.state.data = data
+
+        # FIXME: for now, sending the whole dataset to the client
+        # The client can do computations on the dataset faster than we can
+        # do them on the server and send updates. However, we might want
+        # to explore this more in the future so we don't have to send the
+        # full dataset over.
+        self.state.data = data.tolist()
+
+        # Store the header and the data in the app too
+        self.header = header
+        self.data = data
 
     @property
     def state(self):
