@@ -1,11 +1,17 @@
-import csv
 from pathlib import Path
+
+import numpy as np
 
 from trame.app import get_server
 from trame.decorators import TrameApp, change
 from trame.ui.vuetify3 import SinglePageWithDrawerLayout
 from trame.widgets import vuetify3 as v, html
+
 from trame_radvolviz.widgets import radvolviz
+
+from .compute import data_topology_reduction, compute_gbc
+from .io import load_csv_dataset
+
 
 DATA_FILE = Path(__file__).parent.parent.parent / "data/data10.csv"
 
@@ -17,32 +23,34 @@ class App:
         self.load_data()
         self.ui = self._build_ui()
 
+        self.update_data_to_draw()
+
     def load_data(self):
-        header = None
-        data = []
-        with DATA_FILE.open(newline='') as csv_file:
-            for row in csv.reader(csv_file, delimiter=","):
-                if header is None:
-                    header = row
-                else:
-                    data.append(list(map(float, row)))
+        labels, data = load_csv_dataset(DATA_FILE)
 
-        print(f"{header=}")
-        print(f"{data[:3]=}")
+        self.data = data
+        self.state.labels = labels
 
-        self.state.components = header
-        self.state.data = data
+    @change('w_bins', 'w_rotation')
+    def update_data_to_draw(self, **kwargs):
+        print('hi')
+        rotation = np.radians(self.state.w_rotation)
+        gbc, components = compute_gbc(self.data, rotation)
+        q = data_topology_reduction(gbc, self.state.w_bins)
+
+        self.state.data_to_draw = q
+        self.state.label_coordinates = components.tolist()
 
     @property
     def state(self):
         return self.server.state
 
     @change("lens_data")
-    def update_opacity(self, lens_data, **kwargs):
-        print(f"{lens_data=}")
+    def on_lens_changed(self, lens_data, **kwargs):
+        pass
 
     def _build_ui(self):
-        self.state.setdefault("lens_data", None)
+        self.state.setdefault('lens_data', None)
 
         with SinglePageWithDrawerLayout(
             self.server, full_height=True
@@ -109,7 +117,7 @@ class App:
             with layout.content:
                 radvolviz.NdColorMap(
                     data=("data", []),
-                    components=("components", []),
+                    labels=("labels", []),
                     size=("w_size", 200),
                     rotation=("w_rotation", 0),
                     sample_size=("w_sample_size", 100),
@@ -117,4 +125,6 @@ class App:
                     show_lens=("w_lens", False),
                     lens_radius=("w_lradius", 10),
                     lens="lens_data = $event",
+                    label_coordinates=('label_coordinates', []),
+                    data_to_draw=('data_to_draw', []),
                 )

@@ -19,8 +19,8 @@ def data_topology_reduction(
     c_min = 0
     c_max = num_bins - 1
     for entry in data:
-        i, j = np.clip(np.floor((entry + 1) / delta), c_min, c_max)
-        bin_map[i][j].append(entry)
+        i, j = np.clip(np.floor((entry + 1) / delta), c_min, c_max).astype(int)
+        bin_map[i][j].append(entry.tolist())
 
     q = []
     for entries in bins:

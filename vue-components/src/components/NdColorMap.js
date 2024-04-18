@@ -1,6 +1,5 @@
 import * as d3 from "d3";
 import { computeColorMapImage } from "../utils/colors";
-import { computeGBC, dataTopologyReduction } from "../utils/compute";
 
 const { ref, unref, toRefs, computed, watch } = window.Vue;
 
@@ -38,27 +37,18 @@ export default {
       type: Number,
       default: 10,
     },
-    data: {
+    labels: {
       type: Array,
     },
-    components: {
+    labelCoordinates: {
+      type: Array,
+    },
+    dataToDraw: {
       type: Array,
     },
   },
   setup(props, { emit }) {
     const container = ref(null);
-    const radRotationAngle = computed(() => props.rotation / 57.32);
-    const dataToProcess = computed(() => ({
-      header: props.components,
-      data: props.data.slice(0, props.sampleSize),
-    }));
-    const gbcData = computed(() =>
-      computeGBC(unref(dataToProcess).data, unref(radRotationAngle))
-    );
-    const dataToDraw = computed(() =>
-      dataTopologyReduction(unref(gbcData).GBCL, unref(gbcData).components,
-                            props.numberOfBins)
-    );
     const bgImage = computed(() =>
       computeColorMapImage(props.size, props.brushMode)
     );
@@ -120,18 +110,18 @@ export default {
       }
     );
 
-    const { size, showLens, lensRadius } = toRefs(props);
+    const { dataToDraw, labelCoordinates, lensRadius, showLens, size } = toRefs(props);
     return {
-      container,
-      size,
       bgImage,
+      container,
       dataToDraw,
-      scaleGBC,
-      dataToProcess,
-      showLens,
-      lensRadius,
+      labelCoordinates,
       lensLocation,
+      lensRadius,
       onMousePress,
+      scaleGBC,
+      showLens,
+      size,
     };
   },
   template: `
@@ -142,7 +132,7 @@ export default {
             <g fill="#fff" stroke="black" stroke-opacity="0.5">
               <circle
                 :key="'scatter-' + i"
-                v-for="d, i in dataToDraw.q"
+                v-for="d, i in dataToDraw"
                 :cx="scaleGBC(d[0])"
                 :cy="scaleGBC(d[1])"
                 r="2.5"
@@ -152,7 +142,7 @@ export default {
             <g fill="#C7D9E8" stroke="#333">
               <circle
                 :key="'component-' + i"
-                v-for="d, i in dataToDraw.components"
+                v-for="d, i in labelCoordinates"
                 :cx="scaleGBC(d[0] * 0.997)"
                 :cy="scaleGBC(d[1] * 0.997)"
                 r="6"
@@ -162,13 +152,13 @@ export default {
             <g font-size="30px" fill="#666" stroke="#111" stroke-opacity="1" opacity="1" style="user-select: none;">
               <text
                 :key="'label-' + i"
-                v-for="d, i in dataToDraw.components"
+                v-for="d, i in labelCoordinates"
                 :x="scaleGBC(d[0] * 0.997)"
                 :y="scaleGBC(d[1] * 0.997)"
                 :dx="d[0] < 0 ? '-1.40em' : '.35em'"
                 :dy="d[1] < 0 ? '-.230em' : '.531em'"
               >
-                {{ dataToProcess.header[i] }}
+                {{ labels[i] }}
               </text>
             </g>
 

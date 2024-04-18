@@ -17,15 +17,16 @@ class NdColorMap(HtmlElement):
     def __init__(self, children=None, **kwargs):
         super().__init__("nd-color-map", children, **kwargs)
         self._attr_names += [
-            "components",
-            "data",
-            "size",
+            "labels",
             "rotation",
+            "size",
             ("brush_mode", "brushMode"),
-            ("sample_size", "sampleSize"),
-            ("number_of_bins", "numberOfBins"),
-            ("show_lens", "showLens"),
+            ("data_to_draw", "dataToDraw"),
+            ("label_coordinates", "labelCoordinates"),
             ("lens_radius", "lensRadius"),
+            ("number_of_bins", "numberOfBins"),
+            ("sample_size", "sampleSize"),
+            ("show_lens", "showLens"),
         ]
         self._event_names += [
             "lens",
