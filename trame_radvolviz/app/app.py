@@ -7,7 +7,7 @@ from trame.ui.vuetify3 import SinglePageWithDrawerLayout
 from trame.widgets import vuetify3 as v, html
 from trame_radvolviz.widgets import radvolviz
 
-from .compute import compute_gbc, gbc_to_hsl
+from .compute import compute_gbc, gbc_to_rgb
 from .io import load_csv_dataset
 
 DATA_FILE = Path(__file__).parent.parent.parent / "data/data10.csv"
@@ -39,9 +39,9 @@ class App:
     @change('w_rotation')
     def update_voxel_colors(self, **kwargs):
         gbc, components = compute_gbc(self.data, self.state.w_rotation)
-        hsl = gbc_to_hsl(gbc)
+        rgb = gbc_to_rgb(gbc)
 
-        # FIXME: convert to RGB and set voxel colors
+        # FIXME: set voxel colors
 
     @property
     def state(self):
