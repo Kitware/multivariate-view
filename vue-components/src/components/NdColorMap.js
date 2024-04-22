@@ -36,7 +36,8 @@ export default {
     },
     lensRadius: {
       type: Number,
-      default: 10,
+      // Use unit cell units for lens radius
+      default: 0.5,
     },
     data: {
       type: Array,
@@ -63,6 +64,7 @@ export default {
       computeColorMapImage(props.size, props.brushMode)
     );
     const diameter = computed(() => Math.round(props.size * 2.4) / 3.1);
+    const lensRadiusDisplayUnits = computed(() => props.lensRadius * unref(diameter) / 2);
     const xyOffset = computed(() => (props.size - unref(diameter)) * 0.5);
     const scaleGBC = computed(() =>
       d3.scaleLinear(
@@ -106,7 +108,10 @@ export default {
       keepLensInside(newLoc);
 
       lensLocation.value = newLoc;
-      emit("lens", { x, y, r: unref(lensRadius), s: props.size });
+
+      // Emit the lens center in unit cell coordinates
+      emit("lens", [x / unref(lensRadiusDisplayUnits),
+                    y / unref(lensRadiusDisplayUnits)]);
     }
     function onMouseRelease() {
       document.removeEventListener("mousemove", onMouseMove);
@@ -130,6 +135,7 @@ export default {
       dataToProcess,
       showLens,
       lensRadius,
+      lensRadiusDisplayUnits,
       lensLocation,
       onMousePress,
     };
@@ -176,7 +182,7 @@ export default {
               v-if="showLens"
               :cx="0.5 * size + lensLocation[0]"
               :cy="0.5 * size + lensLocation[1]"
-              :r="lensRadius"
+              :r="lensRadiusDisplayUnits"
               fill="rgba(255, 255, 255, 0.2)"
               opacity="0.5"
               stroke="red"
