@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numba
 import numpy as np
 
 from trame.app import get_server
@@ -9,10 +10,10 @@ from trame.widgets import client, html, vtk, vuetify3 as v
 from trame_radvolviz.widgets import radvolviz
 
 from .compute import compute_gbc, gbc_to_rgb
-from .io import load_csv_dataset
+from .io import load_png_dataset
 from .volume_view import VolumeView
 
-DATA_FILE = Path(__file__).parent.parent.parent / 'data/data10.csv'
+DATA_FILE = Path(__file__).parent.parent.parent / 'data/12CeCoFeGd.png'
 
 
 @TrameApp()
@@ -25,50 +26,76 @@ class App:
         self.rgb_data = None
         self.first_render = True
 
-        self.load_data()
         self.ui = self._build_ui()
+        self.load_data()
 
     def load_data(self):
-        header, data = load_csv_dataset(DATA_FILE)
+        header, data = load_png_dataset(DATA_FILE)
 
-        self.state.components = header
+        # FIXME: hard-code the header to the labels
+        self.header = ['Ce', 'Co', 'Fe', 'Gd']
+        self.state.components = self.header
 
-        # FIXME: for now, sending the whole dataset to the client
-        # The client can do computations on the dataset faster than we can
-        # do them on the server and send updates. However, we might want
-        # to explore this more in the future so we don't have to send the
-        # full dataset over.
-        self.state.data = data.tolist()
+        # Remember the data shape (without the multichannel part)
+        self.data_shape = data.shape[:-1]
 
-        # Store the header and the data in the app too
-        self.header = header
-        self.data = data
+        # Store the data in a flattened form. It is easier to work with.
+        flattened_data = data.reshape(np.prod(self.data_shape), 4)
+        self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
+
+        # Only store nonzero data. We will reconstruct the zeros later.
+        self.nonzero_data = flattened_data[self.nonzero_indices]
+
+        # For now, sending the whole nonzero dataset to the client.
+        # This is so that it can update its binning and colormap plot
+        # on its own, which makes for much faster user interactions.
+        self.state.data = self.nonzero_data.tolist()
+
+        # Trigger an update of the data
+        self.update_voxel_colors()
 
     @change('w_rotation')
     def update_voxel_colors(self, **kwargs):
-        gbc, components = compute_gbc(self.data,
+        gbc, components = compute_gbc(self.nonzero_data,
                                       np.radians(self.state.w_rotation))
         self.gbc_data = gbc
         self.rgb_data = gbc_to_rgb(gbc)
 
         self.update_volume_data()
 
-    @change('lens_center', 'w_lens', 'w_lradius')
     def update_volume_data(self, **kwargs):
         if any(x is None for x in (self.rgb_data, self.gbc_data)):
             return
 
         rgb = self.rgb_data
-        alpha = self.compute_alpha()
 
-        # Transpose and add alpha channel
-        rgba = np.hstack((rgb.T, alpha[..., np.newaxis]))
+        # Reconstruct full data with rgba values
+        full_data = np.zeros((np.prod(self.data_shape), 4))
+        full_data[self.nonzero_indices, :3] = rgb.T
+
+        # All nonzero voxels will default to an alpha of 1
+        # They will be updated later.
+        full_data[self.nonzero_indices, 3] = 1
+        full_data = full_data.reshape((*self.data_shape, 4))
 
         # Set the data on the volume
-        self.volume_view.set_data(rgba)
+        self.volume_view.set_data(full_data)
 
         # Reset the camera if it is the first render
         self.reset_camera_on_first_render()
+
+        # Update the mask data too. This will trigger an update.
+        self.update_mask_data()
+
+    @change('lens_center', 'w_lens', 'w_lradius')
+    def update_mask_data(self, **kwargs):
+        if any(x is None for x in (self.rgb_data, self.gbc_data)):
+            return
+
+        alpha = self.compute_alpha()
+        mask_ref = self.volume_view.mask_reference
+        mask_ref[self.nonzero_indices] = alpha
+        self.volume_view.mask_data.Modified()
 
         # Update the view
         self.ctrl.view_update()
@@ -107,17 +134,13 @@ class App:
 
         if not self.lens_enabled:
             # All opaque
-            return np.ones(gbc_data.shape[0])
+            return np.ones(gbc_data.shape[0], dtype=bool)
 
-        # These are in unit cell coordinates
+        # These are in unit circle coordinates
         r = self.state.w_lradius
         x, y = self.state.lens_center
 
-        # Compute distance formula to lens center
-        distances = np.sqrt((gbc_data - (x, y))**2).sum(axis=1)
-
-        # Any distances less than the radius are within the lens
-        return (distances < r).astype(float)
+        return _compute_alpha(np.array([x, y]), r, gbc_data)
 
     def _build_ui(self):
         self.state.setdefault('lens_center', [0, 0])
@@ -132,7 +155,7 @@ class App:
 
             with layout.toolbar.clear():
                 v.VAppBarNavIcon(click='main_drawer = !main_drawer')
-                v.VAppBarTitle('RadVolViz')
+                v.VAppBarTitle('Multivariate')
                 v.VSpacer()
                 html.Div('{{ lens_center }}')
 
@@ -198,3 +221,12 @@ class App:
 
                 ctrl.reset_camera = html_view.reset_camera
                 ctrl.view_update = html_view.update
+
+
+@numba.njit(cache=True, nogil=True)
+def _compute_alpha(center, radius, gbc_data):
+   # Compute distance formula to lens center
+   distances = np.sqrt(((gbc_data - center)**2).sum(axis=1))
+
+   # Any distances less than the radius are within the lens
+   return distances < radius

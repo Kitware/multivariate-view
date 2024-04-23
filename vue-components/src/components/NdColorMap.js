@@ -105,13 +105,13 @@ export default {
 
       // Keep x,y in circle
       const newLoc = [x, y];
-      keepLensInside(newLoc);
+      [x, y] = keepLensInside(newLoc);
 
       lensLocation.value = newLoc;
 
-      // Emit the lens center in unit cell coordinates
-      emit("lens", [x / unref(lensRadiusDisplayUnits),
-                    y / unref(lensRadiusDisplayUnits)]);
+      // Emit the lens center in unit circle coordinates
+      emit("lens", [x / unref(diameter) * 2,
+                    y / unref(diameter) * 2]);
     }
     function onMouseRelease() {
       document.removeEventListener("mousemove", onMouseMove);

@@ -8,6 +8,7 @@ requires-python = '>= 3.10'
 dynamic = ['version']
 dependencies = [
   'numba',
+  'pillow',
   'trame',
   'trame-vtk',
   'trame-vuetify',

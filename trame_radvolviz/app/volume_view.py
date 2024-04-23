@@ -11,8 +11,9 @@ from vtkmodules.vtkRenderingCore import (
     vtkVolume,
     vtkVolumeProperty,
 )
-from vtkmodules.vtkRenderingVolumeOpenGL2 import vtkSmartVolumeMapper
+from vtkmodules.vtkRenderingVolume import vtkGPUVolumeRayCastMapper
 import vtkmodules.util.numpy_support as np_s
+import vtkmodules.vtkRenderingVolumeOpenGL2  # noqa - this is required
 
 
 class VolumeView:
@@ -38,6 +39,7 @@ class VolumeView:
         # The property describes how the data will look.
         volume_property = vtkVolumeProperty()
         volume_property.IndependentComponentsOff()
+        volume_property.SetInterpolationTypeToLinear()
 
         # Fix the scalar opacity to be a no-op
         pwf = volume_property.GetScalarOpacity()
@@ -46,8 +48,14 @@ class VolumeView:
         pwf.AddPoint(1, 1)
 
         volume_data = vtkImageData()
-        volume_mapper = vtkSmartVolumeMapper()
+        mask_data = vtkImageData()
+
+        volume_mapper = vtkGPUVolumeRayCastMapper()
         volume_mapper.SetInputData(volume_data)
+        volume_mapper.UseJitteringOn()
+
+        volume_mapper.SetMaskInput(mask_data)
+        volume_mapper.SetMaskTypeToBinary()
 
         volume = vtkVolume()
         volume.SetMapper(volume_mapper)
@@ -64,27 +72,37 @@ class VolumeView:
         self.renderer = ren
         self.render_window = ren_win
         self.volume_data = volume_data
+        self.mask_data = mask_data
 
     def set_data(self, data):
-        # FIXME: how do I figure this shape out?
-        shape = (43, 31, 52)
-        num_voxels = np.prod(shape)
+        shape = data.shape[:3]
+        raveled = data.reshape((np.prod(shape), 4))
 
-        # Already raveled...
-        raveled = data
+        set_array_to_image_data(raveled, self.volume_data, shape)
 
-        # FIXME: would it be faster to set the data on the existing
-        # vtkArray, rather than create a new vtkArray each time?
-        vtk_array = np_s.numpy_to_vtk(raveled, deep=True)
+        # Set a default mask array of ones
+        set_array_to_image_data(np.zeros(np.prod(shape)), self.mask_data, shape)
 
-        self.volume_data.SetDimensions(shape)
-        pd = self.volume_data.GetPointData()
+        self.volume_data.Modified()
+        self.render_window.Render()
 
-        # Remove all other arrays
+    @property
+    def mask_reference(self):
+        # Return a numpy array that refers to the VTK mask array
+        return np_s.vtk_to_numpy(
+            self.mask_data.GetPointData().GetScalars()
+        )
+
+
+def set_array_to_image_data(array: np.ndarray, image_data: vtkImageData,
+                            shape: tuple[int], clear=True):
+
+    vtk_array = np_s.numpy_to_vtk(array, deep=True)
+    image_data.SetDimensions(shape)
+    pd = image_data.GetPointData()
+
+    if clear:
         while pd.GetNumberOfArrays() > 0:
             pd.RemoveArray(0)
 
-        # Add the array
-        pd.SetScalars(vtk_array)
-        self.volume_data.Modified()
-        self.render_window.Render()
+    pd.SetScalars(vtk_array)
