@@ -36,10 +36,11 @@ class App:
         self.header = ['Ce', 'Co', 'Fe', 'Gd']
         self.state.components = self.header
 
-        # Crop the data so it will render faster.
+        # Remove padding so it will render faster.
         # This removes faces that are all zeros recursively until
         # the first non-zero voxel is hit.
-        data = _crop_data_uniform(data)
+        # Our sample data has a *lot* of padding.
+        data = _remove_padding_uniform(data)
 
         # Remember the data shape (without the multichannel part)
         self.data_shape = data.shape[:-1]
@@ -237,7 +238,7 @@ def _compute_alpha(center, radius, gbc_data):
 
 
 @numba.njit(cache=True, nogil=True)
-def _crop_data_uniform(data: np.ndarray) -> np.ndarray:
+def _remove_padding_uniform(data: np.ndarray) -> np.ndarray:
     zero_data = np.isclose(data, 0).sum(axis=3) == 4
 
     # This is the number to crop
