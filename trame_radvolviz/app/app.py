@@ -79,9 +79,10 @@ class App:
         full_data = np.zeros((np.prod(self.data_shape), 4))
         full_data[self.nonzero_indices, :3] = rgb.T
 
-        # All nonzero voxels will default to an alpha of 1
-        # They will be updated later.
-        full_data[self.nonzero_indices, 3] = 1
+        # Make nonzero voxels have an alpha of the mean of the channels.
+        full_data[self.nonzero_indices, 3] = (
+            self.nonzero_data.mean(axis=1) / self.nonzero_data.sum(axis=1)
+        )
         full_data = full_data.reshape((*self.data_shape, 4))
 
         # Set the data on the volume
