@@ -162,7 +162,6 @@ class App:
                 v.VAppBarNavIcon(click='main_drawer = !main_drawer')
                 v.VAppBarTitle('Multivariate')
                 v.VSpacer()
-                html.Div('{{ lens_center }}')
 
             with layout.drawer as drawer:
                 drawer.width = 400
@@ -213,7 +212,7 @@ class App:
                     components=('components', []),
                     size=drawer.width,
                     rotation=('w_rotation', 0),
-                    sample_size=('w_sample_size', 100),
+                    sample_size=('w_sample_size', 6000),
                     number_of_bins=('w_bins', 6),
                     show_lens=('w_lens', False),
                     lens_radius=('w_lradius', 0.5),
