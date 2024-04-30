@@ -9,6 +9,7 @@ dynamic = ['version']
 dependencies = [
   'numba',
   'pillow',
+  'scipy',
   'trame',
   'trame-vtk',
   'trame-vuetify',

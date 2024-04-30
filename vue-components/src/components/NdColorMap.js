@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import { computeColorMapImage } from "../utils/colors";
-import { computeGBC, dataTopologyReduction } from "../utils/compute";
+import { rotateCoordinates } from "../utils/compute";
 
 const { ref, unref, toRefs, computed, watch } = window.Vue;
 
@@ -39,29 +39,27 @@ export default {
       // Use unit cell units for lens radius
       default: 0.5,
     },
-    data: {
+    componentLabels: {
       type: Array,
     },
-    components: {
+    unrotatedComponentCoords: {
+      type: Array,
+    },
+    unrotatedBinData: {
       type: Array,
     },
   },
   setup(props, { emit }) {
     const container = ref(null);
-    const radRotationAngle = computed(() => props.rotation / 57.32);
-    const dataToProcess = computed(() => ({
-      header: props.components,
-      data: props.data.slice(0, props.sampleSize),
-    }));
-    const gbcData = computed(() =>
-      computeGBC(unref(dataToProcess).data, unref(radRotationAngle))
-    );
-    const dataToDraw = computed(() =>
-      dataTopologyReduction(unref(gbcData).GBCL, unref(gbcData).components,
-                            props.numberOfBins)
-    );
+    const radRotationAngle = computed(() => props.rotation * Math.PI / 180);
     const bgImage = computed(() =>
       computeColorMapImage(props.size, props.brushMode)
+    );
+    const dataToDraw = computed(() =>
+      ({
+        data: rotateCoordinates(props.unrotatedBinData, unref(radRotationAngle)),
+        components: rotateCoordinates(props.unrotatedComponentCoords, unref(radRotationAngle))
+      })
     );
     const diameter = computed(() => Math.round(props.size * 2.4) / 3.1);
     const lensRadiusDisplayUnits = computed(() => props.lensRadius * unref(diameter) / 2);
@@ -125,19 +123,19 @@ export default {
       }
     );
 
-    const { size, showLens, lensRadius } = toRefs(props);
+    const { componentLabels, lensRadius, showLens, size } = toRefs(props);
     return {
-      container,
-      size,
       bgImage,
+      componentLabels,
+      container,
       dataToDraw,
-      scaleGBC,
-      dataToProcess,
-      showLens,
+      lensLocation,
       lensRadius,
       lensRadiusDisplayUnits,
-      lensLocation,
       onMousePress,
+      scaleGBC,
+      showLens,
+      size,
     };
   },
   template: `
@@ -148,7 +146,7 @@ export default {
             <g fill="#fff" stroke="black" stroke-opacity="0.5">
               <circle
                 :key="'scatter-' + i"
-                v-for="d, i in dataToDraw.q"
+                v-for="d, i in dataToDraw.data"
                 :cx="scaleGBC(d[0])"
                 :cy="scaleGBC(d[1])"
                 r="2.5"
@@ -174,7 +172,7 @@ export default {
                 :dx="d[0] < 0 ? '-1.40em' : '.35em'"
                 :dy="d[1] < 0 ? '-.230em' : '.531em'"
               >
-                {{ dataToProcess.header[i] }}
+                {{ componentLabels[i] }}
               </text>
             </g>
 

@@ -9,7 +9,12 @@ from trame.ui.vuetify3 import SinglePageWithDrawerLayout
 from trame.widgets import client, html, vtk, vuetify3 as v
 from trame_radvolviz.widgets import radvolviz
 
-from .compute import compute_gbc, gbc_to_rgb
+from .compute import (
+    compute_gbc,
+    data_topology_reduction,
+    gbc_to_rgb,
+    rotate_coordinates,
+)
 from .io import load_png_dataset
 from .volume_view import VolumeView
 
@@ -21,6 +26,9 @@ class App:
     def __init__(self, server=None):
         self.server = get_server(server, client_type='vue3')
         self.volume_view = VolumeView()
+
+        self.unrotated_gbc = None
+        self.unrotated_components = None
 
         self.gbc_data = None
         self.rgb_data = None
@@ -34,7 +42,7 @@ class App:
 
         # FIXME: hard-code the header to the labels
         self.header = ['Ce', 'Co', 'Fe', 'Gd']
-        self.state.components = self.header
+        self.state.component_labels = self.header
 
         # Remove padding so it will render faster.
         # This removes faces that are all zeros recursively until
@@ -52,18 +60,34 @@ class App:
         # Only store nonzero data. We will reconstruct the zeros later.
         self.nonzero_data = flattened_data[self.nonzero_indices]
 
-        # For now, sending the whole nonzero dataset to the client.
-        # This is so that it can update its binning and colormap plot
-        # on its own, which makes for much faster user interactions.
-        self.state.data = self.nonzero_data.tolist()
-
         # Trigger an update of the data
+        self.update_gbc()
+
+    def update_gbc(self):
+        gbc, components = compute_gbc(self.nonzero_data)
+
+        self.unrotated_gbc = gbc
+        self.state.unrotated_component_coords = components.tolist()
+
+        self.update_bin_data()
         self.update_voxel_colors()
+
+    @change('w_bins', 'w_sample_size')
+    def update_bin_data(self, **kwargs):
+        num_samples = self.state.w_sample_size
+        num_bins = self.state.w_bins
+
+        # FIXME: this is what RadVolViz does for sampling, but we should do
+        # better than this, (i. e., a strided or random sampling).
+        data = self.unrotated_gbc[:num_samples]
+        unrotated_bin_data = data_topology_reduction(data, num_bins)
+        self.state.unrotated_bin_data = unrotated_bin_data.tolist()
 
     @change('w_rotation')
     def update_voxel_colors(self, **kwargs):
-        gbc, components = compute_gbc(self.nonzero_data,
-                                      np.radians(self.state.w_rotation))
+        angle = np.radians(self.state.w_rotation)
+        gbc = rotate_coordinates(self.unrotated_gbc, angle)
+
         self.gbc_data = gbc
         self.rgb_data = gbc_to_rgb(gbc)
 
@@ -80,9 +104,9 @@ class App:
         full_data[self.nonzero_indices, :3] = rgb.T
 
         # Make nonzero voxels have an alpha of the mean of the channels.
-        full_data[self.nonzero_indices, 3] = (
-            self.nonzero_data.mean(axis=1) / self.nonzero_data.sum(axis=1)
-        )
+        full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(
+            axis=1
+        ) / self.nonzero_data.sum(axis=1)
         full_data = full_data.reshape((*self.data_shape, 4))
 
         # Set the data on the volume
@@ -155,9 +179,7 @@ class App:
         server = self.server
         ctrl = self.ctrl
 
-        with SinglePageWithDrawerLayout(
-            server, full_height=True
-        ) as layout:
+        with SinglePageWithDrawerLayout(server, full_height=True) as layout:
             client.Style('html { overflow-y: hidden; }')
 
             with layout.toolbar.clear():
@@ -210,8 +232,12 @@ class App:
                 )
 
                 radvolviz.NdColorMap(
-                    data=('data', []),
-                    components=('components', []),
+                    component_labels=('component_labels', []),
+                    unrotated_bin_data=('unrotated_bin_data', []),
+                    unrotated_component_coords=(
+                        'unrotated_component_coords',
+                        [],
+                    ),
                     size=drawer.width,
                     rotation=('w_rotation', 0),
                     sample_size=('w_sample_size', 6000),
@@ -222,8 +248,9 @@ class App:
                 )
 
             with layout.content:
-                html_view = vtk.VtkRemoteView(self.render_window,
-                                              interactive_ratio=1)
+                html_view = vtk.VtkRemoteView(
+                    self.render_window, interactive_ratio=1
+                )
 
                 ctrl.reset_camera = html_view.reset_camera
                 ctrl.view_update = html_view.update
@@ -231,11 +258,11 @@ class App:
 
 @numba.njit(cache=True, nogil=True)
 def _compute_alpha(center, radius, gbc_data):
-   # Compute distance formula to lens center
-   distances = np.sqrt(((gbc_data - center)**2).sum(axis=1))
+    # Compute distance formula to lens center
+    distances = np.sqrt(((gbc_data - center) ** 2).sum(axis=1))
 
-   # Any distances less than the radius are within the lens
-   return distances < radius
+    # Any distances less than the radius are within the lens
+    return distances < radius
 
 
 @numba.njit(cache=True, nogil=True)
@@ -246,14 +273,14 @@ def _remove_padding_uniform(data: np.ndarray) -> np.ndarray:
     n = 0
     indices = np.array([n, -n - 1])
     while (
-        zero_data[indices].all() &
-        zero_data[:, indices].all() &
-        zero_data[:, :, indices].all()
+        zero_data[indices].all()
+        & zero_data[:, indices].all()
+        & zero_data[:, :, indices].all()
     ):
         n += 1
         indices = np.array([n, -n - 1])
 
     if n != 0:
-        data = data[n:-n - 1, n:-n - 1, n:-n - 1]
+        data = data[n : -n - 1, n : -n - 1, n : -n - 1]
 
     return data

@@ -81,7 +81,9 @@ class VolumeView:
         set_array_to_image_data(raveled, self.volume_data, shape)
 
         # Set a default mask array of ones
-        set_array_to_image_data(np.zeros(np.prod(shape)), self.mask_data, shape)
+        set_array_to_image_data(
+            np.zeros(np.prod(shape)), self.mask_data, shape
+        )
 
         self.volume_data.Modified()
         self.render_window.Render()
@@ -89,13 +91,12 @@ class VolumeView:
     @property
     def mask_reference(self):
         # Return a numpy array that refers to the VTK mask array
-        return np_s.vtk_to_numpy(
-            self.mask_data.GetPointData().GetScalars()
-        )
+        return np_s.vtk_to_numpy(self.mask_data.GetPointData().GetScalars())
 
 
-def set_array_to_image_data(array: np.ndarray, image_data: vtkImageData,
-                            shape: tuple[int], clear=True):
+def set_array_to_image_data(
+    array: np.ndarray, image_data: vtkImageData, shape: tuple[int], clear=True
+):
 
     vtk_array = np_s.numpy_to_vtk(array, deep=True)
     image_data.SetDimensions(shape)

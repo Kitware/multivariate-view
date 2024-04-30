@@ -3,15 +3,13 @@ import numpy as np
 
 
 @numba.njit(cache=True, nogil=True)
-def compute_gbc(
-    data: np.ndarray, rotate_radian_angle: float
-) -> tuple[np.ndarray, np.ndarray]:
+def compute_gbc(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Compute dimensions
     m, n = data.shape
 
     # Compute angles and components
     angle = np.empty((n,))
-    angle[0] = np.pi / 2 + rotate_radian_angle
+    angle[0] = np.pi / 2
 
     components = np.empty((n, 2))
     components[0, 0] = np.cos(angle[0])
@@ -62,3 +60,13 @@ def compute_gbc(
         gbc[i, 1] = lth * np.sin(tempangle)
 
     return gbc, components
+
+
+@numba.njit(cache=True, nogil=True)
+def rotate_coordinates(coords, angle):
+    """Rotate coordinates by the angle (radians) about the origin"""
+    mat = np.array(
+        [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+    )
+
+    return (mat @ coords.T).T

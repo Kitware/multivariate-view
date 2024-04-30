@@ -1,6 +1,6 @@
 import numpy as np
 
-from trame_radvolviz.app.compute.gbc import compute_gbc
+from trame_radvolviz.app.compute.gbc import compute_gbc, rotate_coordinates
 
 
 def test_gbc(sample_dataset_data, ref_dir):
@@ -20,7 +20,11 @@ def test_gbc(sample_dataset_data, ref_dir):
 
         # We only use up to num_rows of the data
         data = sample_dataset_data[:num_rows]
-        gbc, components = compute_gbc(data, rotation)
+        gbc, components = compute_gbc(data)
+
+        # Perform the rotation
+        gbc = rotate_coordinates(gbc, rotation)
+        components = rotate_coordinates(components, rotation)
 
         assert np.allclose(components, ref_components)
         assert np.allclose(gbc, ref_gbc)

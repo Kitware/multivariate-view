@@ -20,9 +20,12 @@ def load_csv_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
 
 def load_png_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
     img = Image.open(path)
-    data = np.array(img).reshape(
-        (16, 256, 16, 256, 4)
-    ).swapaxes(1, 2).reshape((256, 256, 256, 4))
+    data = (
+        np.array(img)
+        .reshape((16, 256, 16, 256, 4))
+        .swapaxes(1, 2)
+        .reshape((256, 256, 256, 4))
+    )
 
     # What is the slice shape?
     # FIXME: can we figure out the actual labels?

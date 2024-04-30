@@ -44,4 +44,4 @@ def data_topology_reduction(
             sample_idx.add(rd)
             q.append(entries[rd])
 
-    return q
+    return np.asarray(q)
