@@ -6,7 +6,7 @@ import numpy as np
 from trame.app import get_server
 from trame.decorators import TrameApp, change
 from trame.ui.vuetify3 import SinglePageWithDrawerLayout
-from trame.widgets import client, html, vtk, vuetify3 as v
+from trame.widgets import client, vtk, vuetify3 as v
 from trame_radvolviz.widgets import radvolviz
 
 from .compute import (
@@ -15,10 +15,12 @@ from .compute import (
     gbc_to_rgb,
     rotate_coordinates,
 )
-from .io import load_png_dataset
+from .io import load_dataset
 from .volume_view import VolumeView
 
+
 DATA_FILE = Path(__file__).parent.parent.parent / 'data/12CeCoFeGd.png'
+# DATA_FILE = Path(__file__).parent.parent.parent / 'data/CoMnNiO.npz'
 
 
 @TrameApp()
@@ -38,11 +40,9 @@ class App:
         self.load_data()
 
     def load_data(self):
-        header, data = load_png_dataset(DATA_FILE)
+        header, data = load_dataset(DATA_FILE)
 
-        # FIXME: hard-code the header to the labels
-        self.header = ['Ce', 'Co', 'Fe', 'Gd']
-        self.state.component_labels = self.header
+        self.state.component_labels = header
 
         # Remove padding so it will render faster.
         # This removes faces that are all zeros recursively until
@@ -52,9 +52,15 @@ class App:
 
         # Remember the data shape (without the multichannel part)
         self.data_shape = data.shape[:-1]
+        self.num_channels = data.shape[-1]
+
+        # Normalize the data to be between 0 and 1
+        data = _normalize_data(data)
 
         # Store the data in a flattened form. It is easier to work with.
-        flattened_data = data.reshape(np.prod(self.data_shape), 4)
+        flattened_data = data.reshape(
+            np.prod(self.data_shape), self.num_channels
+        )
         self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
 
         # Only store nonzero data. We will reconstruct the zeros later.
@@ -104,9 +110,7 @@ class App:
         full_data[self.nonzero_indices, :3] = rgb.T
 
         # Make nonzero voxels have an alpha of the mean of the channels.
-        full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(
-            axis=1
-        ) / self.nonzero_data.sum(axis=1)
+        full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(axis=1)
         full_data = full_data.reshape((*self.data_shape, 4))
 
         # Set the data on the volume
@@ -267,7 +271,8 @@ def _compute_alpha(center, radius, gbc_data):
 
 @numba.njit(cache=True, nogil=True)
 def _remove_padding_uniform(data: np.ndarray) -> np.ndarray:
-    zero_data = np.isclose(data, 0).sum(axis=3) == 4
+    num_channels = data.shape[-1]
+    zero_data = np.isclose(data, 0).sum(axis=3) == num_channels
 
     # This is the number to crop
     n = 0
@@ -284,3 +289,13 @@ def _remove_padding_uniform(data: np.ndarray) -> np.ndarray:
         data = data[n : -n - 1, n : -n - 1, n : -n - 1]
 
     return data
+
+
+@numba.njit(cache=True, nogil=True)
+def _normalize_data(data: np.ndarray, new_min: float = 0, new_max: float = 1):
+    max_val = data.max()
+    min_val = data.min()
+
+    return (new_max - new_min) * (data.astype(np.float64) - min_val) / (
+        max_val - min_val
+    ) + new_min

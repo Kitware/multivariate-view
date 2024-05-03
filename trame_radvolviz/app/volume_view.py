@@ -75,7 +75,9 @@ class VolumeView:
         self.mask_data = mask_data
 
     def set_data(self, data):
-        shape = data.shape[:3]
+        # We use C ordering throughout the application, but VTK uses
+        # Fortran ordering. Reverse the shape to fix this.
+        shape = data.shape[:3][::-1]
         raveled = data.reshape((np.prod(shape), 4))
 
         set_array_to_image_data(raveled, self.volume_data, shape)
