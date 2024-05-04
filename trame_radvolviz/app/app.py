@@ -83,9 +83,9 @@ class App:
         num_samples = self.state.w_sample_size
         num_bins = self.state.w_bins
 
-        # FIXME: this is what RadVolViz does for sampling, but we should do
-        # better than this, (i. e., a strided or random sampling).
-        data = self.unrotated_gbc[:num_samples]
+        # Perform random sampling
+        sample_idx = np.random.choice(len(self.unrotated_gbc), size=num_samples)
+        data = self.unrotated_gbc[sample_idx]
         unrotated_bin_data = data_topology_reduction(data, num_bins)
         self.state.unrotated_bin_data = unrotated_bin_data.tolist()
 
