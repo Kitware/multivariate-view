@@ -122,7 +122,7 @@ class App:
         # Update the mask data too. This will trigger an update.
         self.update_mask_data()
 
-    @change('lens_center', 'w_lens', 'w_lradius')
+    @change('lens_center', 'w_lens', 'w_lradius', 'w_clip_x')
     def update_mask_data(self, **kwargs):
         if any(x is None for x in (self.rgb_data, self.gbc_data)):
             return
@@ -167,18 +167,39 @@ class App:
             # Can't do anything
             return None
 
-        if not self.lens_enabled:
+        # Convert w_clip_x to a percentage
+        clip_x = self.state.w_clip_x / 100
+        if clip_x < 1:
+            # Make a mask the shape of the original data
+            clip_mask = np.ones(self.data_shape, dtype=bool)
+            # Compute the max index, after which data is clipped
+            max_idx = int(np.round(self.data_shape[0] * clip_x))
+            # Apply clip
+            clip_mask[max_idx:, :, :] = False
+            # Reshape into the flat form and remove any zero index data
+            clip_flattened = clip_mask.reshape(np.prod(self.data_shape))
+            # If we perform any other operations, we can logical_and them
+            alpha = clip_flattened[self.nonzero_indices]
+        else:
             # All opaque
-            return np.ones(gbc_data.shape[0], dtype=bool)
+            alpha = np.ones(gbc_data.shape[0], dtype=bool)
+
+        if not self.lens_enabled:
+            # Only apply clipping
+            return alpha
 
         # These are in unit circle coordinates
         r = self.state.w_lradius
         x, y = self.state.lens_center
 
-        return _compute_alpha(np.array([x, y]), r, gbc_data)
+        lens_alpha = _compute_alpha(np.array([x, y]), r, gbc_data)
+
+        # Combine the lens alpha with the current alpha
+        return np.logical_and(alpha, lens_alpha)
 
     def _build_ui(self):
         self.state.setdefault('lens_center', [0, 0])
+        self.state.setdefault('w_clip_x', 100.0)
 
         server = self.server
         ctrl = self.ctrl
@@ -218,6 +239,15 @@ class App:
                     min=1,
                     max=10,
                     step=1,
+                    density='compact',
+                    hide_details=True,
+                )
+                v.VSlider(
+                    label='Clip X',
+                    v_model='w_clip_x',
+                    min=0.0,
+                    max=100.0,
+                    step=0.001,
                     density='compact',
                     hide_details=True,
                 )
