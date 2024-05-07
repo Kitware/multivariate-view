@@ -5,11 +5,17 @@ from typing import Callable
 
 import numpy as np
 from PIL import Image
+from vtkmodules.vtkIOXML import vtkXMLImageDataReader
+from vtkmodules.util import numpy_support as np_s
 
 from trame_radvolviz.typing import PathLike
 
 
-def load_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
+# First is a list of labels, second is an array
+LoadReturnType = tuple[list[str], np.ndarray]
+
+
+def load_dataset(path: PathLike) -> LoadReturnType:
     """Automatically determine format and load a dataset
 
     Labels and data are returned
@@ -32,7 +38,7 @@ def identify_loader_function(
     raise Exception(msg)
 
 
-def load_csv_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
+def load_csv_dataset(path: PathLike) -> LoadReturnType:
     """Load a CSV dataset and return the labels and the data"""
     # First, load the labels
     with open(path) as f:
@@ -44,7 +50,7 @@ def load_csv_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
     return labels, data
 
 
-def load_npz_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
+def load_npz_dataset(path: PathLike) -> LoadReturnType:
     # This assumes each channel is saved as a separate array in the npz file
     datasets = {}
     with np.load(path) as f:
@@ -59,7 +65,7 @@ def load_npz_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
     return labels, data
 
 
-def load_radvolviz_png_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
+def load_radvolviz_png_dataset(path: PathLike) -> LoadReturnType:
     # Load a radvolviz-style multi-channel PNG dataset
     img = Image.open(path)
     data = (
@@ -71,7 +77,28 @@ def load_radvolviz_png_dataset(path: PathLike) -> tuple[list[str], np.ndarray]:
 
     # What is the slice shape?
     # FIXME: can we figure out the actual labels?
-    labels = ['R', 'B', 'G', 'A']
+    labels = ['R', 'G', 'B', 'A']
+
+    return labels, data
+
+
+def load_vti_dataset(path: PathLike) -> LoadReturnType:
+    reader = vtkXMLImageDataReader()
+    reader.SetFileName(path)
+    reader.Update()
+    image_data = reader.GetOutput()
+
+    vtk_array = image_data.GetPointData().GetScalars()
+    data_shape = image_data.GetDimensions()
+    num_components = vtk_array.GetNumberOfComponents()
+    labels = [vtk_array.GetComponentName(i) for i in range(num_components)]
+    data = np_s.vtk_to_numpy(vtk_array).reshape(*data_shape, num_components)
+
+    # This is in fortran ordering, but our program expects C ordering.
+    # So transpose to C ordering
+    data = data.reshape(*(data_shape[::-1]),
+                        num_components).transpose(2, 1, 0, 3)
+    data = np.ascontiguousarray(data)
 
     return labels, data
 
@@ -82,6 +109,7 @@ READERS = {
     r'^png$': load_radvolviz_png_dataset,
     r'^npz$': load_npz_dataset,
     r'^csv$': load_csv_dataset,
+    r'^vti$': load_vti_dataset,
 }
 
 # Compile the regular expressions (and make them case-insensitive)
