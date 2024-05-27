@@ -19,7 +19,8 @@ from .io import load_dataset
 from .volume_view import VolumeView
 
 
-DATA_FILE = Path(__file__).parent.parent.parent / 'data/12CeCoFeGd.png'
+# DATA_FILE = Path(__file__).parent.parent.parent / 'data/CeCoFeGd_doi_10.1038_s43246-022-00259-x.npz'
+DATA_FILE = Path(__file__).parent.parent.parent / 'data/Ni_Mn_Co_O.vti'
 # DATA_FILE = Path(__file__).parent.parent.parent / 'data/CoMnNiO.npz'
 
 
@@ -48,14 +49,36 @@ class App:
         # This removes faces that are all zeros recursively until
         # the first non-zero voxel is hit.
         # Our sample data has a *lot* of padding.
-        data = _remove_padding_uniform(data)
+        data = _remove_padding_uniform(data.astype(float))
+        self.unpadded_data = data
 
         # Remember the data shape (without the multichannel part)
         self.data_shape = data.shape[:-1]
         self.num_channels = data.shape[-1]
 
-        # Normalize the data to be between 0 and 1
-        data = _normalize_data(data)
+        self.create_nonzero_data()
+
+    # FIXME: these should be dynamic and potentially nested
+    @change('w_min_0', 'w_max_0', 'w_min_1', 'w_max_1',
+            'w_min_2', 'w_max_2', 'w_min_3', 'w_max_3')
+    def create_nonzero_data(self, **kwargs):
+        data = self.unpadded_data.copy()
+        data = data.astype(np.float64)
+
+        # Normalize
+        for i in range(data.shape[-1]):
+            data[:, :, :, i] = _normalize_data(data[:, :, :, i])
+
+        # Cutoffs
+        for i in range(data.shape[-1]):
+            min_v = getattr(self.state, f'w_min_{i}')
+            max_v = getattr(self.state, f'w_max_{i}')
+            print(f'For {i}, {min_v=} {max_v=}')
+            channel = data[:, :, :, i]
+            threshold_cutoff = np.nanpercentile(channel, min_v)
+            upper_cutoff = np.nanpercentile(channel, max_v)
+            channel[channel < threshold_cutoff] = 0
+            channel[channel > upper_cutoff] = upper_cutoff
 
         # Store the data in a flattened form. It is easier to work with.
         flattened_data = data.reshape(
@@ -64,12 +87,30 @@ class App:
         self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
 
         # Only store nonzero data. We will reconstruct the zeros later.
-        self.nonzero_data = flattened_data[self.nonzero_indices]
+        self.nonzero_unscaled_data = flattened_data[self.nonzero_indices]
 
         # Trigger an update of the data
         self.update_gbc()
 
-    def update_gbc(self):
+    @property
+    def nonzero_data(self):
+        return self.nonzero_unscaled_data * self.rescale_factor
+
+    @property
+    def rescale_factor(self):
+        # FIXME: these should be dynamic and potentially nested
+        return [
+            self.state.w_rescale_factor_0,
+            self.state.w_rescale_factor_1,
+            self.state.w_rescale_factor_2,
+            self.state.w_rescale_factor_3,
+        ]
+
+    # FIXME: these should be dynamic and potentially nested
+    @change('w_rescale_factor_0', 'w_rescale_factor_1', 'w_rescale_factor_2',
+            'w_rescale_factor_3')
+    def update_gbc(self, **kwargs):
+        print(f'{self.rescale_factor=}')
         gbc, components = compute_gbc(self.nonzero_data)
 
         self.unrotated_gbc = gbc
@@ -84,8 +125,9 @@ class App:
         num_bins = self.state.w_bins
 
         # Perform random sampling
-        sample_idx = np.random.choice(len(self.unrotated_gbc), size=num_samples)
-        data = self.unrotated_gbc[sample_idx]
+        self._sample_idx = np.random.choice(len(self.unrotated_gbc), size=num_samples)
+
+        data = self.unrotated_gbc[self._sample_idx]
         unrotated_bin_data = data_topology_reduction(data, num_bins)
         self.state.unrotated_bin_data = unrotated_bin_data.tolist()
 
@@ -201,6 +243,15 @@ class App:
         self.state.setdefault('lens_center', [0, 0])
         self.state.setdefault('w_clip_x', 100.0)
 
+        # FIXME: maybe these should be nested variables?
+        rescale_factors = [4.3201, 3.2501, 2.2501, 3.3601]
+        mins = [94.3901, 92.3001, 93.5101, 95.7101]
+        maxes = [100, 100, 100, 96.5601]
+        for i in range(4):
+            self.state.setdefault(f'w_rescale_factor_{i}', rescale_factors[i])
+            self.state.setdefault(f'w_min_{i}', mins[i])
+            self.state.setdefault(f'w_max_{i}', maxes[i])
+
         server = self.server
         ctrl = self.ctrl
 
@@ -251,6 +302,39 @@ class App:
                     density='compact',
                     hide_details=True,
                 )
+
+                labels = ['Ni', 'Mn', 'Co', 'O']
+                for i, label in enumerate(labels):
+                    v.VSlider(
+                        label=f'Rescale Factor {label}',
+                        v_model=f'w_rescale_factor_{i}',
+                        min=0.0001,
+                        max=5.0,
+                        step=0.01,
+                        density='compact',
+                        hide_details=True,
+                    )
+
+                for i, label in enumerate(labels):
+                    v.VSlider(
+                        label=f'Min: {label}',
+                        v_model=f'w_min_{i}',
+                        min=0.0001,
+                        max=100.0,
+                        step=0.01,
+                        density='compact',
+                        hide_details=True,
+                    )
+                    v.VSlider(
+                        label=f'Max: {label}',
+                        v_model=f'w_max_{i}',
+                        min=0.0001,
+                        max=100.0,
+                        step=0.01,
+                        density='compact',
+                        hide_details=True,
+                    )
+
                 v.VSwitch(
                     label='Lens',
                     v_model='w_lens',
