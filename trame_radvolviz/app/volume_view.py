@@ -73,6 +73,7 @@ class VolumeView:
         self.render_window = ren_win
         self.volume_data = volume_data
         self.mask_data = mask_data
+        self.volume_property = volume_property
 
     def set_data(self, data):
         # We use C ordering throughout the application, but VTK uses

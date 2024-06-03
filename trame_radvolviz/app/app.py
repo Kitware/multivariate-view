@@ -203,6 +203,13 @@ class App:
     def on_data_change(self, data_channels, **_):
         print("data_channels", data_channels)
 
+    @change("w_rendering_shadow")
+    def on_rendering_settings(self, w_rendering_shadow, **kwargs):
+        self.volume_view.volume_property.SetShade(
+            1 if w_rendering_shadow else 0
+        )
+        self.ctrl.view_update()
+
     @property
     def state(self):
         return self.server.state
@@ -349,6 +356,10 @@ class App:
                             v.VBtn(icon="mdi-magnify", value="lens")
                             v.VBtn(icon="mdi-palette", value="color")
                             v.VBtn(
+                                icon="mdi-eye-settings-outline",
+                                value="rendering",
+                            )
+                            v.VBtn(
                                 icon="mdi-chart-histogram", value="sampling"
                             )
                             v.VBtn(icon="mdi-crop", value="clip")
@@ -410,8 +421,6 @@ class App:
                             messages="Adjust lens size",
                         )
 
-                    # Data sampling
-
                     # Color / Rotation management
                     with v.VCard(
                         flat=True,
@@ -428,6 +437,20 @@ class App:
                             messages="Rotate color wheel",
                         )
 
+                    # Rendering settings
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('rendering')",
+                        classes="py-1",
+                    ):
+                        with v.VCol():
+                            v.VSwitch(
+                                label="Use shadow",
+                                v_model=('w_rendering_shadow', False),
+                                density='compact',
+                            )
+
+                    # Data sampling
                     with v.VCard(
                         flat=True,
                         v_show="show_control_panel && show_groups.includes('sampling')",
