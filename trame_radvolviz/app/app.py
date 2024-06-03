@@ -4,6 +4,7 @@ import numba
 import numpy as np
 
 from trame.app import get_server
+from trame.assets.remote import download_file_from_google_drive
 from trame.decorators import TrameApp, change, life_cycle
 from trame.ui.vuetify3 import VAppLayout
 from trame.widgets import client, html, vtk, vuetify3 as v
@@ -20,8 +21,11 @@ from .io import load_dataset
 from .volume_view import VolumeView
 
 
-DATA_FILE = Path(__file__).parent.parent.parent / 'data/12CeCoFeGd.png'
-# DATA_FILE = Path(__file__).parent.parent.parent / 'data/CoMnNiO.npz'
+# We will cache downloaded data examples in this directory.
+EXAMPLE_DATA_DIR = Path(__file__).parent.parent.parent / 'data'
+EXAMPLE_DATA_PATH = EXAMPLE_DATA_DIR / 'CeCoFeGd_doi_10.1038_s43246-022-00259-x.h5'
+EXAMPLE_GOOGLE_DRIVE_ID = '1nI_hzrqbGBypUU7jMbWnF7-PkqNMiwqB'
+EXAMPLE_DATA_REF = 'https://doi.org/10.1038/s43246-022-00259-x'
 
 
 @TrameApp()
@@ -44,7 +48,25 @@ class App:
         self.enable_preprocessing = args.preprocess
         file_to_load = args.data
         if file_to_load is None:
-            file_to_load = DATA_FILE
+            EXAMPLE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+            print(
+                '\nData path was not provided using `--data`'
+                f'\nDefaulting to example: {EXAMPLE_DATA_PATH.name}'
+            )
+
+            citation_str = f'* Example data citation: {EXAMPLE_DATA_REF} *'
+            boundary_str = '*' * len(citation_str)
+            print(f'\n{boundary_str}\n{citation_str}\n{boundary_str}\n')
+
+            if not EXAMPLE_DATA_PATH.exists():
+                # Automatically download the example dataset, and put it in the
+                # data directory.
+                print(f'Downloading example dataset to: {EXAMPLE_DATA_PATH}')
+                download_file_from_google_drive(EXAMPLE_GOOGLE_DRIVE_ID,
+                                                EXAMPLE_DATA_PATH)
+
+            file_to_load = EXAMPLE_DATA_PATH
 
         self.volume_view = VolumeView()
 
