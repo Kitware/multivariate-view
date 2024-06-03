@@ -253,7 +253,7 @@ class App:
             max_idx = int(np.round(self.data_shape[i] * max_clip))
             slices.append(np.s_[min_idx:max_idx])
 
-        clip_mask[*slices] = True
+        clip_mask[slices[0], slices[1], slices[2]] = True
 
         # Reshape into the flat form and remove any zero index data
         clip_flattened = clip_mask.reshape(np.prod(self.data_shape))
