@@ -32,7 +32,15 @@ class App:
         self.server.cli.add_argument(
             "--data", help="Path to the file to load", default=None
         )
+        self.server.cli.add_argument(
+            "--enable-preprocessing",
+            help="Enable additional control on data pre-processing",
+            dest="preprocess",
+            action='store_true',
+        )
+
         args, _ = self.server.cli.parse_known_args()
+        self.enable_preprocessing = args.preprocess
         file_to_load = args.data
         if file_to_load is None:
             file_to_load = DATA_FILE
@@ -56,6 +64,18 @@ class App:
         header, data = load_dataset(Path(file_to_load))
 
         self.state.component_labels = header
+
+        if self.enable_preprocessing:
+            self.state.data_channels = {}
+            # FIXME fill the data channels
+            # => { key: { color: "", clamp: [0, 1], scale: 1 }, ... }
+            self.state.data_channels["R"] = {
+                "color": "rgb(100, 50, 245)",
+                "scale": 1,
+                "clamp": [0, 1],
+            }
+        else:
+            self.state.data_channels = None
 
         # Remove padding so it will render faster.
         # This removes faces that are all zeros recursively until
@@ -112,23 +132,26 @@ class App:
         # ---------------------------------------------------------------------
         # FIXME: update color for each channels in self.state.data_channels
         # ---------------------------------------------------------------------
-        r = (
-            int(2.8 * self.state.w_rotation)
-            if self.state.w_rotation < 90
-            else 128
-        )
-        g = (
-            int(2.8 * (self.state.w_rotation - 90))
-            if 90 < self.state.w_rotation < 180
-            else 128
-        )
-        b = (
-            int(2.8 * (self.state.w_rotation - 180))
-            if 180 < self.state.w_rotation < 270
-            else 128
-        )
-        self.state.data_channels["R"]["color"] = f"rgb({r}, {g}, {b})"
-        self.state.dirty("data_channels")
+        if self.enable_preprocessing:
+            # Dummy example code
+            if "R" in self.state.data_channels:
+                r = (
+                    int(2.8 * self.state.w_rotation)
+                    if self.state.w_rotation < 90
+                    else 128
+                )
+                g = (
+                    int(2.8 * (self.state.w_rotation - 90))
+                    if 90 < self.state.w_rotation < 180
+                    else 128
+                )
+                b = (
+                    int(2.8 * (self.state.w_rotation - 180))
+                    if 180 < self.state.w_rotation < 270
+                    else 128
+                )
+                self.state.data_channels["R"]["color"] = f"rgb({r}, {g}, {b})"
+            self.state.dirty("data_channels")
         # ---------------------------------------------------------------------
 
         self.gbc_data = gbc
@@ -248,31 +271,33 @@ class App:
 
     def _build_ui(self):
         self.state.setdefault('lens_center', [0, 0])
-        self.state.setdefault(
-            'data_channels',
-            {
-                "A test something super long": {
-                    "color": "red",
-                    "clamp": [0, 1],
-                    "scale": 1,
-                },
-                "B igger text": {
-                    "color": "green",
-                    "clamp": [0, 1],
-                    "scale": 1,
-                },
-                "G": {
-                    "color": "blue",
-                    "clamp": [0, 1],
-                    "scale": 1,
-                },
-                "R": {
-                    "color": "purple",
-                    "clamp": [0, 1],
-                    "scale": 1,
-                },
-            },
-        )
+
+        # FIXME
+        # self.state.setdefault(
+        #     'data_channels',
+        #     {
+        #         "A test something super long": {
+        #             "color": "red",
+        #             "clamp": [0, 1],
+        #             "scale": 1,
+        #         },
+        #         "B igger text": {
+        #             "color": "green",
+        #             "clamp": [0, 1],
+        #             "scale": 1,
+        #         },
+        #         "G": {
+        #             "color": "blue",
+        #             "clamp": [0, 1],
+        #             "scale": 1,
+        #         },
+        #         "R": {
+        #             "color": "purple",
+        #             "clamp": [0, 1],
+        #             "scale": 1,
+        #         },
+        #     },
+        # )
 
         server = self.server
         ctrl = self.ctrl
@@ -306,14 +331,15 @@ class App:
                             icon="mdi-cogs",
                             click="show_control_panel = !show_control_panel",
                             density="compact",
-                            classes="mr-3",
+                            classes="mx-3",
                         )
                         v.VSpacer()
 
                         with v.VBtnToggle(
                             v_show=("show_control_panel", True),
                             v_model=("show_groups", []),
-                            color="primary",
+                            # base_color="grey-darken-1",
+                            # color="grey-darken-4",
                             variant="outlined",
                             density="conpact",
                             multiple=True,
@@ -326,7 +352,11 @@ class App:
                                 icon="mdi-chart-histogram", value="sampling"
                             )
                             v.VBtn(icon="mdi-crop", value="clip")
-                            v.VBtn(icon="mdi-tune-variant", value="tune-data")
+                            v.VBtn(
+                                icon="mdi-tune-variant",
+                                value="tune-data",
+                                v_if="data_channels && Object.keys(data_channels).length",
+                            )
 
                         v.VSpacer()
 
@@ -460,6 +490,7 @@ class App:
 
                     # Data tuning
                     with v.VCard(
+                        v_if="data_channels",
                         flat=True,
                         v_show="show_control_panel && show_groups.includes('tune-data')",
                         classes="py-1",
