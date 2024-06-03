@@ -109,6 +109,28 @@ class App:
         angle = np.radians(self.state.w_rotation)
         gbc = rotate_coordinates(self.unrotated_gbc, angle)
 
+        # ---------------------------------------------------------------------
+        # FIXME: update color for each channels in self.state.data_channels
+        # ---------------------------------------------------------------------
+        r = (
+            int(2.8 * self.state.w_rotation)
+            if self.state.w_rotation < 90
+            else 128
+        )
+        g = (
+            int(2.8 * (self.state.w_rotation - 90))
+            if 90 < self.state.w_rotation < 180
+            else 128
+        )
+        b = (
+            int(2.8 * (self.state.w_rotation - 180))
+            if 180 < self.state.w_rotation < 270
+            else 128
+        )
+        self.state.data_channels["R"]["color"] = f"rgb({r}, {g}, {b})"
+        self.state.dirty("data_channels")
+        # ---------------------------------------------------------------------
+
         self.gbc_data = gbc
         self.rgb_data = gbc_to_rgb(gbc)
 
