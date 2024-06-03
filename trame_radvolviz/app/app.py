@@ -8,6 +8,7 @@ from trame.decorators import TrameApp, change, life_cycle
 from trame.ui.vuetify3 import VAppLayout
 from trame.widgets import client, html, vtk, vuetify3 as v
 from trame_radvolviz.widgets import radvolviz
+from .assets import ASSETS
 
 from .compute import (
     compute_gbc,
@@ -296,6 +297,9 @@ class App:
 
         server = self.server
         ctrl = self.ctrl
+
+        self.state.trame__title = "Multi Variate Viewer"
+        self.state.trame__favicon = ASSETS.favicon
 
         with VAppLayout(server, full_height=True) as layout:
             client.Style('html { overflow-y: hidden; }')
