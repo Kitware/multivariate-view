@@ -322,7 +322,9 @@ class App:
                     style="z-index: 1; position: absolute; top: 0.2rem; left: 0.2rem; max-height: calc(100vh - 2.4rem); overflow: auto;",
                 ):
                     with v.VToolbar(
-                        density="compact", style="position: sticky; top: 0;"
+                        density="compact",
+                        style="position: sticky; top: 0;",
+                        classes="align-center",
                     ):
                         v.VProgressLinear(
                             color="primary",
@@ -542,6 +544,9 @@ class App:
                                     prepend_icon="mdi-magnify",
                                     update_modelValue="data_channels[name].scale = $event; flushState('data_channels')",
                                 )
+
+            # print(layout)
+            return layout
 
 
 @numba.njit(cache=True, nogil=True)
