@@ -5,8 +5,8 @@ import numpy as np
 
 from trame.app import get_server
 from trame.decorators import TrameApp, change
-from trame.ui.vuetify3 import SinglePageWithDrawerLayout
-from trame.widgets import client, vtk, vuetify3 as v
+from trame.ui.vuetify3 import VAppLayout
+from trame.widgets import client, html, vtk, vuetify3 as v
 from trame_radvolviz.widgets import radvolviz
 
 from .compute import (
@@ -27,6 +27,16 @@ DATA_FILE = Path(__file__).parent.parent.parent / 'data/12CeCoFeGd.png'
 class App:
     def __init__(self, server=None):
         self.server = get_server(server, client_type='vue3')
+
+        # CLI
+        self.server.cli.add_argument(
+            "--data", help="Path to the file to load", default=None
+        )
+        args, _ = self.server.cli.parse_known_args()
+        file_to_load = args.data
+        if file_to_load is None:
+            file_to_load = DATA_FILE
+
         self.volume_view = VolumeView()
 
         self.unrotated_gbc = None
@@ -37,10 +47,13 @@ class App:
         self.first_render = True
 
         self.ui = self._build_ui()
-        self.load_data()
+        self.load_data(file_to_load)
 
-    def load_data(self):
-        header, data = load_dataset(DATA_FILE)
+        if self.server.hot_reload:
+            self.ctrl.on_server_reload.add(self._build_ui)
+
+    def load_data(self, file_to_load):
+        header, data = load_dataset(Path(file_to_load))
 
         self.state.component_labels = header
 
@@ -84,7 +97,9 @@ class App:
         num_bins = self.state.w_bins
 
         # Perform random sampling
-        sample_idx = np.random.choice(len(self.unrotated_gbc), size=num_samples)
+        sample_idx = np.random.choice(
+            len(self.unrotated_gbc), size=num_samples
+        )
         data = self.unrotated_gbc[sample_idx]
         unrotated_bin_data = data_topology_reduction(data, num_bins)
         self.state.unrotated_bin_data = unrotated_bin_data.tolist()
@@ -93,6 +108,28 @@ class App:
     def update_voxel_colors(self, **kwargs):
         angle = np.radians(self.state.w_rotation)
         gbc = rotate_coordinates(self.unrotated_gbc, angle)
+
+        # ---------------------------------------------------------------------
+        # FIXME: update color for each channels in self.state.data_channels
+        # ---------------------------------------------------------------------
+        r = (
+            int(2.8 * self.state.w_rotation)
+            if self.state.w_rotation < 90
+            else 128
+        )
+        g = (
+            int(2.8 * (self.state.w_rotation - 90))
+            if 90 < self.state.w_rotation < 180
+            else 128
+        )
+        b = (
+            int(2.8 * (self.state.w_rotation - 180))
+            if 180 < self.state.w_rotation < 270
+            else 128
+        )
+        self.state.data_channels["R"]["color"] = f"rgb({r}, {g}, {b})"
+        self.state.dirty("data_channels")
+        # ---------------------------------------------------------------------
 
         self.gbc_data = gbc
         self.rgb_data = gbc_to_rgb(gbc)
@@ -122,7 +159,14 @@ class App:
         # Update the mask data too. This will trigger an update.
         self.update_mask_data()
 
-    @change('lens_center', 'w_lens', 'w_lradius', 'w_clip_x')
+    @change(
+        'lens_center',
+        'show_groups',
+        'w_lradius',
+        'w_clip_x',
+        'w_clip_y',
+        'w_clip_z',
+    )
     def update_mask_data(self, **kwargs):
         if any(x is None for x in (self.rgb_data, self.gbc_data)):
             return
@@ -134,6 +178,10 @@ class App:
 
         # Update the view
         self.ctrl.view_update()
+
+    @change("data_channels")
+    def on_data_change(self, data_channels, **_):
+        print("data_channels", data_channels)
 
     @property
     def state(self):
@@ -149,7 +197,7 @@ class App:
 
     @property
     def lens_enabled(self):
-        return self.state.w_lens
+        return "lense" in self.state.show_groups
 
     def reset_camera_on_first_render(self):
         if not self.first_render:
@@ -167,13 +215,14 @@ class App:
             # Can't do anything
             return None
 
-        # Convert w_clip_x to a percentage
-        clip_x = self.state.w_clip_x / 100
-        if clip_x < 1:
+        min_clip_x, max_clip_x = self.state.w_clip_x
+        min_clip_y, max_clip_y = self.state.w_clip_y
+        min_clip_z, max_clip_z = self.state.w_clip_z
+        if max_clip_x < 1:
             # Make a mask the shape of the original data
             clip_mask = np.ones(self.data_shape, dtype=bool)
             # Compute the max index, after which data is clipped
-            max_idx = int(np.round(self.data_shape[0] * clip_x))
+            max_idx = int(np.round(self.data_shape[0] * max_clip_x))
             # Apply clip
             clip_mask[max_idx:, :, :] = False
             # Reshape into the flat form and remove any zero index data
@@ -199,95 +248,265 @@ class App:
 
     def _build_ui(self):
         self.state.setdefault('lens_center', [0, 0])
-        self.state.setdefault('w_clip_x', 100.0)
+        self.state.setdefault(
+            'data_channels',
+            {
+                "A test something super long": {
+                    "color": "red",
+                    "clamp": [0, 1],
+                    "scale": 1,
+                },
+                "B igger text": {
+                    "color": "green",
+                    "clamp": [0, 1],
+                    "scale": 1,
+                },
+                "G": {
+                    "color": "blue",
+                    "clamp": [0, 1],
+                    "scale": 1,
+                },
+                "R": {
+                    "color": "purple",
+                    "clamp": [0, 1],
+                    "scale": 1,
+                },
+            },
+        )
 
         server = self.server
         ctrl = self.ctrl
 
-        with SinglePageWithDrawerLayout(server, full_height=True) as layout:
+        with VAppLayout(server, full_height=True) as layout:
             client.Style('html { overflow-y: hidden; }')
 
-            with layout.toolbar.clear():
-                v.VAppBarNavIcon(click='main_drawer = !main_drawer')
-                v.VAppBarTitle('Multivariate')
-                v.VSpacer()
-
-            with layout.drawer as drawer:
-                drawer.width = 400
-                # add new widget
-                v.VSlider(
-                    label='Widget rotation',
-                    v_model='w_rotation',
-                    min=0,
-                    max=360,
-                    step=5,
-                    density='compact',
-                    hide_details=True,
-                )
-                v.VSlider(
-                    label='Sample size',
-                    v_model='w_sample_size',
-                    min=100,
-                    max=10000,
-                    step=500,
-                    density='compact',
-                    hide_details=True,
-                )
-                v.VSlider(
-                    label='Number of bins',
-                    v_model='w_bins',
-                    min=1,
-                    max=10,
-                    step=1,
-                    density='compact',
-                    hide_details=True,
-                )
-                v.VSlider(
-                    label='Clip X',
-                    v_model='w_clip_x',
-                    min=0.0,
-                    max=100.0,
-                    step=0.001,
-                    density='compact',
-                    hide_details=True,
-                )
-                v.VSwitch(
-                    label='Lens',
-                    v_model='w_lens',
-                )
-                v.VSlider(
-                    label='Lens radius',
-                    v_model='w_lradius',
-                    min=0.001,
-                    max=1.0,
-                    step=0.001,
-                    density='compact',
-                    hide_details=True,
-                )
-
-                radvolviz.NdColorMap(
-                    component_labels=('component_labels', []),
-                    unrotated_bin_data=('unrotated_bin_data', []),
-                    unrotated_component_coords=(
-                        'unrotated_component_coords',
-                        [],
-                    ),
-                    size=drawer.width,
-                    rotation=('w_rotation', 0),
-                    sample_size=('w_sample_size', 6000),
-                    number_of_bins=('w_bins', 6),
-                    show_lens=('w_lens', False),
-                    lens_radius=('w_lradius', 0.5),
-                    lens='lens_center = $event',
-                )
-
-            with layout.content:
-                html_view = vtk.VtkRemoteView(
-                    self.render_window, interactive_ratio=1
-                )
-
+            with vtk.VtkRemoteView(
+                self.render_window, interactive_ratio=1
+            ) as html_view:
                 ctrl.reset_camera = html_view.reset_camera
                 ctrl.view_update = html_view.update
+
+                with v.VCard(
+                    classes=(
+                        "{ 'ma-4': 1, 'rounded-xl': !show_control_panel }",
+                    ),
+                    style="z-index: 1; position: absolute; top: 0.2rem; left: 0.2rem; max-height: calc(100vh - 2.4rem); overflow: auto;",
+                ):
+                    with v.VToolbar(
+                        density="compact", style="position: sticky; top: 0;"
+                    ):
+                        v.VProgressLinear(
+                            color="primary",
+                            indeterminate=("trame__busy",),
+                            v_show="trame__busy",
+                            absolute=True,
+                            style="bottom: 0; top: none;",
+                        )
+                        v.VBtn(
+                            icon="mdi-cogs",
+                            click="show_control_panel = !show_control_panel",
+                            density="compact",
+                            classes="mr-3",
+                        )
+                        v.VSpacer()
+
+                        with v.VBtnToggle(
+                            v_show=("show_control_panel", True),
+                            v_model=("show_groups", []),
+                            color="primary",
+                            variant="outlined",
+                            density="conpact",
+                            multiple=True,
+                            divided=True,
+                            classes="mr-4",
+                        ):
+                            v.VBtn(icon="mdi-magnify", value="lense")
+                            v.VBtn(icon="mdi-palette", value="color")
+                            v.VBtn(
+                                icon="mdi-chart-histogram", value="sampling"
+                            )
+                            v.VBtn(icon="mdi-crop", value="clip")
+                            v.VBtn(icon="mdi-tune-variant", value="tune-data")
+
+                        v.VSpacer()
+
+                        if self.server.hot_reload:
+                            v.VBtn(
+                                v_show=("show_control_panel", True),
+                                icon="mdi-refresh",
+                                click=self.ctrl.on_server_reload,
+                                density="compact",
+                            )
+
+                        v.VBtn(
+                            icon="mdi-crop-free",
+                            density="compact",
+                            classes="mr-3",
+                            click=ctrl.reset_camera,
+                        )
+
+                    # Main widget
+                    radvolviz.NdColorMap(
+                        v_show="show_control_panel",
+                        component_labels=('component_labels', []),
+                        unrotated_bin_data=('unrotated_bin_data', []),
+                        unrotated_component_coords=(
+                            'unrotated_component_coords',
+                            [],
+                        ),
+                        size=400,
+                        rotation=('w_rotation', 0),
+                        sample_size=('w_sample_size', 6000),
+                        number_of_bins=('w_bins', 6),
+                        show_lens=("show_groups.includes('lense')",),
+                        lens_radius=('w_lradius', 0.5),
+                        lens='lens_center = $event',
+                        # style="position: sticky; top: 3rem; z-index: 1; background: white;",
+                    )
+
+                    # Lense control
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('lense')",
+                        classes="py-1",
+                    ):
+                        v.VSlider(
+                            v_model='w_lradius',
+                            min=0.001,
+                            max=1.0,
+                            step=0.001,
+                            density='compact',
+                            prepend_icon="mdi-radius-outline",
+                            messages="Adjust lense size",
+                        )
+
+                    # Data sampling
+
+                    # Color / Rotation management
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('color')",
+                        classes="py-1",
+                    ):
+                        v.VSlider(
+                            v_model='w_rotation',
+                            min=0,
+                            max=360,
+                            step=5,
+                            density='compact',
+                            prepend_icon="mdi-rotate-360",
+                            messages="Rotate color wheel",
+                        )
+
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('sampling')",
+                        classes="py-1",
+                    ):
+                        v.VSlider(
+                            v_model='w_sample_size',
+                            min=100,
+                            max=10000,
+                            step=500,
+                            density='compact',
+                            prepend_icon="mdi-blur-radial",
+                            messages="Adjust sampling size",
+                        )
+                        v.VSlider(
+                            v_model='w_bins',
+                            min=1,
+                            max=10,
+                            step=1,
+                            density='compact',
+                            prepend_icon="mdi-chart-scatter-plot-hexbin",
+                            messages="Number of bins for the sampling algorithm",
+                        )
+
+                    # Cropping
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('clip')",
+                        classes="py-1 pr-4",
+                    ):
+                        v.VLabel("Crop dataset", classes="text-body-2 ml-1")
+                        v.VDivider(classes="mr-n4")
+                        v.VRangeSlider(
+                            label='X',
+                            v_model=('w_clip_x', [0, 1]),
+                            min=0.0,
+                            max=1.0,
+                            step=0.001,
+                            density='compact',
+                            hide_details=True,
+                        )
+                        v.VRangeSlider(
+                            label='Y',
+                            v_model=('w_clip_y', [0, 1]),
+                            min=0.0,
+                            max=1.0,
+                            step=0.001,
+                            density='compact',
+                            hide_details=True,
+                        )
+                        v.VRangeSlider(
+                            label='Z',
+                            v_model=('w_clip_z', [0, 1]),
+                            min=0.0,
+                            max=1.0,
+                            step=0.001,
+                            density='compact',
+                            hide_details=True,
+                        )
+
+                    # Data tuning
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('tune-data')",
+                        classes="py-1",
+                    ):
+                        v.VLabel(
+                            "Data pre-processing", classes="text-body-2 ml-1"
+                        )
+                        v.VDivider(classes="mr-n4")
+                        with v.VRow(
+                            v_for=("data, name in data_channels"),
+                            key="name",
+                            classes="mx-0 my-1",
+                        ):
+                            with v.VCol(
+                                cols="1", align_self="center pa-0 ma-0"
+                            ):
+                                html.Div(
+                                    "{{ name }}",  # : Scale({{ data.scale }}) Clamp({{ data.clamp[0] }}, {{ data.clamp[1] }})
+                                    classes="text-body-2 text-center text-truncate",
+                                    style="transform: rotate(-90deg) translateY(calc(-100% - 0.2rem));  width: 5.5rem;",
+                                )
+                            with v.VCol(
+                                classes="border-s-lg",
+                                style=(
+                                    "`border-color: ${data.color} !important;`",
+                                ),
+                            ):
+                                v.VRangeSlider(
+                                    model_value=('data.clamp',),
+                                    min=0.0,
+                                    max=1.0,
+                                    step=0.001,
+                                    density='compact',
+                                    hide_details=True,
+                                    prepend_icon="mdi-scissors-cutting",
+                                    update_modelValue="data_channels[name].clamp = $event; flushState('data_channels')",
+                                )
+                                v.VSlider(
+                                    model_value=('data.scale', 1),
+                                    min=0.001,
+                                    max=5,
+                                    step=0.001,
+                                    density='compact',
+                                    hide_details=True,
+                                    prepend_icon="mdi-magnify",
+                                    update_modelValue="data_channels[name].scale = $event; flushState('data_channels')",
+                                )
 
 
 @numba.njit(cache=True, nogil=True)

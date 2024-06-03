@@ -96,8 +96,9 @@ def load_vti_dataset(path: PathLike) -> LoadReturnType:
 
     # This is in fortran ordering, but our program expects C ordering.
     # So transpose to C ordering
-    data = data.reshape(*(data_shape[::-1]),
-                        num_components).transpose(2, 1, 0, 3)
+    data = data.reshape(*(data_shape[::-1]), num_components).transpose(
+        2, 1, 0, 3
+    )
     data = np.ascontiguousarray(data)
 
     return labels, data
