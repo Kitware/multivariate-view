@@ -220,7 +220,7 @@ class App:
 
     @property
     def lens_enabled(self):
-        return "lense" in self.state.show_groups
+        return "lens" in self.state.show_groups
 
     def reset_camera_on_first_render(self):
         if not self.first_render:
@@ -346,7 +346,7 @@ class App:
                             divided=True,
                             classes="mr-4",
                         ):
-                            v.VBtn(icon="mdi-magnify", value="lense")
+                            v.VBtn(icon="mdi-magnify", value="lens")
                             v.VBtn(icon="mdi-palette", value="color")
                             v.VBtn(
                                 icon="mdi-chart-histogram", value="sampling"
@@ -388,7 +388,7 @@ class App:
                         rotation=('w_rotation', 0),
                         sample_size=('w_sample_size', 6000),
                         number_of_bins=('w_bins', 6),
-                        show_lens=("show_groups.includes('lense')",),
+                        show_lens=("show_groups.includes('lens')",),
                         lens_radius=('w_lradius', 0.5),
                         lens='lens_center = $event',
                         # style="position: sticky; top: 3rem; z-index: 1; background: white;",
@@ -397,7 +397,7 @@ class App:
                     # Lense control
                     with v.VCard(
                         flat=True,
-                        v_show="show_control_panel && show_groups.includes('lense')",
+                        v_show="show_control_panel && show_groups.includes('lens')",
                         classes="py-1",
                     ):
                         v.VSlider(
@@ -407,7 +407,7 @@ class App:
                             step=0.001,
                             density='compact',
                             prepend_icon="mdi-radius-outline",
-                            messages="Adjust lense size",
+                            messages="Adjust lens size",
                         )
 
                     # Data sampling
