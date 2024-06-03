@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 from typing import Callable
 
+import h5py
 import numpy as np
 from PIL import Image
 from vtkmodules.vtkIOXML import vtkXMLImageDataReader
@@ -104,6 +105,20 @@ def load_vti_dataset(path: PathLike) -> LoadReturnType:
     return labels, data
 
 
+def load_hdf5_dataset(path: PathLike) -> LoadReturnType:
+    labels = []
+    data = []
+
+    with h5py.File(path, 'r') as f:
+        for key in f:
+            labels.append(key)
+            data.append(f[key][()])
+
+    data = np.stack(data, axis=3)
+
+    return labels, data
+
+
 # The key for these readers is the regular expression
 # that the extension should match.
 READERS = {
@@ -111,6 +126,7 @@ READERS = {
     r'^npz$': load_npz_dataset,
     r'^csv$': load_csv_dataset,
     r'^vti$': load_vti_dataset,
+    r'^h5$': load_hdf5_dataset,
 }
 
 # Compile the regular expressions (and make them case-insensitive)
