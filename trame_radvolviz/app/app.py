@@ -27,6 +27,16 @@ DATA_FILE = Path(__file__).parent.parent.parent / 'data/12CeCoFeGd.png'
 class App:
     def __init__(self, server=None):
         self.server = get_server(server, client_type='vue3')
+
+        # CLI
+        self.server.cli.add_argument(
+            "--data", help="Path to the file to load", default=None
+        )
+        args, _ = self.server.cli.parse_known_args()
+        file_to_load = args.data
+        if file_to_load is None:
+            file_to_load = DATA_FILE
+
         self.volume_view = VolumeView()
 
         self.unrotated_gbc = None
@@ -37,10 +47,10 @@ class App:
         self.first_render = True
 
         self.ui = self._build_ui()
-        self.load_data()
+        self.load_data(file_to_load)
 
-    def load_data(self):
-        header, data = load_dataset(DATA_FILE)
+    def load_data(self, file_to_load):
+        header, data = load_dataset(Path(file_to_load))
 
         self.state.component_labels = header
 
@@ -84,7 +94,9 @@ class App:
         num_bins = self.state.w_bins
 
         # Perform random sampling
-        sample_idx = np.random.choice(len(self.unrotated_gbc), size=num_samples)
+        sample_idx = np.random.choice(
+            len(self.unrotated_gbc), size=num_samples
+        )
         data = self.unrotated_gbc[sample_idx]
         unrotated_bin_data = data_topology_reduction(data, num_bins)
         self.state.unrotated_bin_data = unrotated_bin_data.tolist()
