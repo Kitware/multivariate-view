@@ -4,7 +4,7 @@ import numba
 import numpy as np
 
 from trame.app import get_server
-from trame.decorators import TrameApp, change
+from trame.decorators import TrameApp, change, life_cycle
 from trame.ui.vuetify3 import VAppLayout
 from trame.widgets import client, html, vtk, vuetify3 as v
 from trame_radvolviz.widgets import radvolviz
@@ -52,7 +52,6 @@ class App:
 
         self.gbc_data = None
         self.rgb_data = None
-        self.first_render = True
 
         self.ui = self._build_ui()
         self.load_data(file_to_load)
@@ -176,9 +175,6 @@ class App:
         # Set the data on the volume
         self.volume_view.set_data(full_data)
 
-        # Reset the camera if it is the first render
-        self.reset_camera_on_first_render()
-
         # Update the mask data too. This will trigger an update.
         self.update_mask_data()
 
@@ -222,15 +218,10 @@ class App:
     def lens_enabled(self):
         return "lens" in self.state.show_groups
 
-    def reset_camera_on_first_render(self):
-        if not self.first_render:
-            # Already had the first render
-            return
-
+    @life_cycle.server_ready
+    def initial_reset_camera(self, **kwargs):
         self.volume_view.renderer.ResetCameraClippingRange()
         self.volume_view.renderer.ResetCamera()
-        self.ctrl.reset_camera()
-        self.first_render = False
 
     @property
     def clip_ranges(self):
