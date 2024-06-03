@@ -232,29 +232,33 @@ class App:
         self.ctrl.reset_camera()
         self.first_render = False
 
+    @property
+    def clip_ranges(self):
+        return [
+            self.state.w_clip_x,
+            self.state.w_clip_y,
+            self.state.w_clip_z,
+        ]
+
     def compute_alpha(self):
         gbc_data = self.gbc_data
         if gbc_data is None:
             # Can't do anything
             return None
 
-        min_clip_x, max_clip_x = self.state.w_clip_x
-        min_clip_y, max_clip_y = self.state.w_clip_y
-        min_clip_z, max_clip_z = self.state.w_clip_z
-        if max_clip_x < 1:
-            # Make a mask the shape of the original data
-            clip_mask = np.ones(self.data_shape, dtype=bool)
-            # Compute the max index, after which data is clipped
-            max_idx = int(np.round(self.data_shape[0] * max_clip_x))
-            # Apply clip
-            clip_mask[max_idx:, :, :] = False
-            # Reshape into the flat form and remove any zero index data
-            clip_flattened = clip_mask.reshape(np.prod(self.data_shape))
-            # If we perform any other operations, we can logical_and them
-            alpha = clip_flattened[self.nonzero_indices]
-        else:
-            # All opaque
-            alpha = np.ones(gbc_data.shape[0], dtype=bool)
+        clip_mask = np.zeros(self.data_shape, dtype=bool)
+        slices = []
+        for i, (min_clip, max_clip) in enumerate(self.clip_ranges):
+            min_idx = int(np.round(self.data_shape[i] * min_clip))
+            max_idx = int(np.round(self.data_shape[i] * max_clip))
+            slices.append(np.s_[min_idx:max_idx])
+
+        clip_mask[*slices] = True
+
+        # Reshape into the flat form and remove any zero index data
+        clip_flattened = clip_mask.reshape(np.prod(self.data_shape))
+        # If we perform any other operations, we can logical_and them
+        alpha = clip_flattened[self.nonzero_indices]
 
         if not self.lens_enabled:
             # Only apply clipping
