@@ -203,11 +203,17 @@ class App:
     def on_data_change(self, data_channels, **_):
         print("data_channels", data_channels)
 
-    @change("w_rendering_shadow")
-    def on_rendering_settings(self, w_rendering_shadow, **kwargs):
+    @change("w_rendering_shadow", "w_rendering_bg")
+    def on_rendering_settings(
+        self, w_rendering_shadow, w_rendering_bg, **kwargs
+    ):
         self.volume_view.volume_property.SetShade(
             1 if w_rendering_shadow else 0
         )
+        if w_rendering_bg:
+            self.volume_view.renderer.SetBackground(1, 1, 1)
+        else:
+            self.volume_view.renderer.SetBackground(0, 0, 0)
         self.ctrl.view_update()
 
     @property
@@ -447,6 +453,11 @@ class App:
                             v.VSwitch(
                                 label="Use shadow",
                                 v_model=('w_rendering_shadow', False),
+                                density='compact',
+                            )
+                            v.VSwitch(
+                                label="Use white background",
+                                v_model=('w_rendering_bg', False),
                                 density='compact',
                             )
 
