@@ -324,7 +324,6 @@ class App:
                     with v.VToolbar(
                         density="compact",
                         style="position: sticky; top: 0;",
-                        classes="align-center",
                     ):
                         v.VProgressLinear(
                             color="primary",
