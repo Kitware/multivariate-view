@@ -46,6 +46,8 @@ where = ["."]
 [tool.setuptools.package-data]
 multivariate_view = ["module/serve/*.js"]
 
+[tool.setuptools_scm]
+
 [project.scripts]
 multivariate-view = 'multivariate_view.app.main:main'
 mv-view = 'multivariate_view.app.main:main'
