@@ -3,7 +3,7 @@ requires = ['setuptools', 'setuptools_scm']
 build-backend = 'setuptools.build_meta'
 
 [project]
-name = 'trame-radvolviz'
+name = 'multivariate-view'
 requires-python = '>= 3.10'
 dynamic = ['version']
 dependencies = [
@@ -28,7 +28,7 @@ maintainers = [
   {name = 'Sankhesh Jhaveri', email = 'sankhesh.jhaveri@kitware.com'},
   {name = 'Sebastien Jourdain', email = 'sebastien.jourdain@kitware.com'},
 ]
-description = 'RadVolViz interface for multivariate rendering with VTK'
+description = 'RadVolViz-inspired multivariate volume visualizer using VTK'
 readme = 'README.md'
 license = {file = 'LICENSE'}
 keywords = ['web', 'trame', 'vtk', 'radvolviz', 'multivariate', 'volume']
@@ -44,10 +44,10 @@ classifiers = [
 where = ["."]
 
 [tool.setuptools.package-data]
-trame_radvolviz = ["module/serve/*.js"]
+multivariate_view = ["module/serve/*.js"]
 
 [project.scripts]
-trame-radvolviz = 'trame_radvolviz.app.main:main'
+multivariate-view = 'multivariate_view.app.main:main'
 
 [tool.black]
 line-length = 79

@@ -1,6 +1,6 @@
 import numpy as np
 
-from trame_radvolviz.app.compute.gbc import compute_gbc, rotate_coordinates
+from multivariate_view.app.compute.gbc import compute_gbc, rotate_coordinates
 
 
 def test_gbc(sample_dataset_data, ref_dir):

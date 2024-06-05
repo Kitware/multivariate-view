@@ -2,13 +2,13 @@
   "name": "radoviz-components",
   "private": true,
   "version": "0.0.0",
-  "main": "./dist/trame_radvolviz.umd.js",
-  "unpkg": "./dist/trame_radvolviz.umd.js",
-  "module": "./dist/trame_radvolviz.mjs",
+  "main": "./dist/multivariate_view.umd.js",
+  "unpkg": "./dist/multivariate_view.umd.js",
+  "module": "./dist/multivariate_view.mjs",
   "exports": {
     ".": {
-      "import": "./dist/trame_radvolviz.mjs",
-      "require": "./dist/trame_radvolviz.umd.js"
+      "import": "./dist/multivariate_view.mjs",
+      "require": "./dist/multivariate_view.umd.js"
     }
   },
   "scripts": {

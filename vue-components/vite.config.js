@@ -9,9 +9,9 @@ export default {
     // sourcemap: "inline",
     lib: {
       entry: "./src/main.js",
-      name: "trame_radvolviz",
+      name: "multivariate_view",
       formats: ["umd"],
-      fileName: "trame_radvolviz",
+      fileName: "multivariate_view",
     },
     rollupOptions: {
       external: ["vue"],
@@ -21,7 +21,7 @@ export default {
         },
       },
     },
-    outDir: "../trame_radvolviz/module/serve",
+    outDir: "../multivariate_view/module/serve",
     assetsDir: ".",
   },
 };

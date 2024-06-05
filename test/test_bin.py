@@ -1,6 +1,6 @@
 import numpy as np
 
-from trame_radvolviz.app.compute.bin import data_topology_reduction
+from multivariate_view.app.compute.bin import data_topology_reduction
 
 
 def test_binning(ref_dir):

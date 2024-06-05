@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from trame_radvolviz.app.io import load_csv_dataset
+from multivariate_view.app.io import load_csv_dataset
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def test_dir():
 
 @pytest.fixture
 def data_path(test_dir):
-    return test_dir.parent / 'data/data10.csv'
+    return test_dir / 'test_data/data10.csv'
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@ import colorsys
 
 import numpy as np
 
-from trame_radvolviz.app.compute.hsl import gbc_to_hsl, hsl_to_rgb
+from multivariate_view.app.compute.hsl import gbc_to_hsl, hsl_to_rgb
 
 
 def test_hsl_to_rgb(sample_dataset_data, ref_dir):
