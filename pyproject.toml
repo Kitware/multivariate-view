@@ -48,6 +48,7 @@ multivariate_view = ["module/serve/*.js"]
 
 [project.scripts]
 multivariate-view = 'multivariate_view.app.main:main'
+mv-view = 'multivariate_view.app.main:main'
 
 [tool.black]
 line-length = 79
