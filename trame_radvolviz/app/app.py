@@ -425,7 +425,7 @@ class App:
                         ),
                         size=400,
                         rotation=('w_rotation', 0),
-                        sample_size=('w_sample_size', 6000),
+                        sample_size=('w_sample_size', 1100),
                         number_of_bins=('w_bins', 6),
                         show_lens=("show_groups.includes('lens')",),
                         lens_radius=('w_lradius', 0.5),
