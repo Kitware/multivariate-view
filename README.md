@@ -4,6 +4,8 @@
 
 A multivariate/multimodal volume visualizer!
 
+This [RadVolViz](https://doi.org/10.1109/TVCG.2023.3263856)-inspired prototype utilizes [trame](https://kitware.github.io/trame/) and [VTK](https://vtk.org/) to render multi-channel volumetric datasets.
+
 # Install and Run
 
 To install, first ensure you are in an environment using Python3.10 or newer, and then run the following command:
@@ -32,3 +34,9 @@ This example dataset is downloaded automatically and loaded if the application i
 ![ep2](https://github.com/Kitware/multivariate-view/assets/9558430/228d87af-0e1b-4b6d-929e-3253a82d90e5)
 
 *Note: the EP1 phase from the paper is comprised of fewer voxels and is more difficult to visualize without data filters*
+
+# Data Loading
+
+Two of the easiest formats to use are HDF5 and NPZ. For both of these file types, each channel of the volume should have its own dataset at the top level, and each dataset must be identical in shape and datatype. There should be no other datasets present.
+
+If the application is started with `multivariate-view --data /path/to/data.h5`, then all root level datasets will be loaded automatically and visualized.
