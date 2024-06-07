@@ -474,7 +474,7 @@ class App:
                         with v.VCol():
                             v.VSwitch(
                                 label="Use shadow",
-                                v_model=('w_rendering_shadow', False),
+                                v_model=('w_rendering_shadow', True),
                                 density='compact',
                             )
                             v.VSwitch(
