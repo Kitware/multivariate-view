@@ -76,8 +76,9 @@ class App:
         self.gbc_data = None
         self.rgb_data = None
 
-        self.ui = self._build_ui()
+        self.state.vtkViewInitialized = False
         self.load_data(file_to_load)
+        self.ui = self._build_ui()
 
         if self.server.hot_reload:
             self.ctrl.on_server_reload.add(self._build_ui)
@@ -135,8 +136,8 @@ class App:
 
     @change('w_bins', 'w_sample_size')
     def update_bin_data(self, **kwargs):
-        num_samples = self.state.w_sample_size
-        num_bins = self.state.w_bins
+        num_samples = 1100 if self.state.w_sample_size is None else self.state.w_sample_size
+        num_bins = 6 if self.state.w_bins is None else self.state.w_bins
 
         # Perform random sampling
         sample_idx = np.random.choice(
@@ -148,7 +149,7 @@ class App:
 
     @change('w_rotation')
     def update_voxel_colors(self, **kwargs):
-        angle = np.radians(self.state.w_rotation)
+        angle = 0 if self.state.w_rotation is None else np.radians(self.state.w_rotation)
         gbc = rotate_coordinates(self.unrotated_gbc, angle)
 
         # ---------------------------------------------------------------------
@@ -219,7 +220,8 @@ class App:
         self.volume_view.mask_data.Modified()
 
         # Update the view
-        self.ctrl.view_update()
+        if self.state.vtkViewInitialized:
+            self.ctrl.view_update()
 
     @change("data_channels")
     def on_data_change(self, data_channels, **_):
@@ -236,7 +238,8 @@ class App:
             self.volume_view.renderer.SetBackground(1, 1, 1)
         else:
             self.volume_view.renderer.SetBackground(0, 0, 0)
-        self.ctrl.view_update()
+        if self.state.vtkViewInitialized:
+            self.ctrl.view_update()
 
     @property
     def state(self):
@@ -252,7 +255,7 @@ class App:
 
     @property
     def lens_enabled(self):
-        return "lens" in self.state.show_groups
+        return "lens" in self.state.show_groups if self.state.show_groups else False
 
     @life_cycle.server_ready
     def initial_reset_camera(self, **kwargs):
@@ -262,9 +265,9 @@ class App:
     @property
     def clip_ranges(self):
         return [
-            self.state.w_clip_x,
-            self.state.w_clip_y,
-            self.state.w_clip_z,
+            self.state.w_clip_x if self.state.w_clip_x is not None else [0, 1],
+            self.state.w_clip_y if self.state.w_clip_y is not None else [0, 1],
+            self.state.w_clip_z if self.state.w_clip_z is not None else [0, 1],
         ]
 
     def compute_alpha(self):
@@ -344,6 +347,7 @@ class App:
             ) as html_view:
                 ctrl.reset_camera = html_view.reset_camera
                 ctrl.view_update = html_view.update
+                self.state.vtkViewInitialized = True
 
                 with v.VCard(
                     classes=(
@@ -382,6 +386,7 @@ class App:
                             classes="mr-4",
                         ):
                             v.VBtn(icon="mdi-magnify", value="lens")
+                            v.VBtn(icon="mdi-vector-bezier", value="threshold")
                             v.VBtn(icon="mdi-palette", value="color")
                             v.VBtn(
                                 icon="mdi-eye-settings-outline",
@@ -464,6 +469,24 @@ class App:
                             prepend_icon="mdi-rotate-360",
                             messages="Rotate color wheel",
                         )
+
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('threshold')",
+                        classes="py-1",
+                    ):
+                        v.VLabel("Threshold individual channels", classes="text-body-2 ml-1")
+                        v.VDivider(classes="mr-n4")
+                        for idc, comp in enumerate(self.state.component_labels):
+                            v.VRangeSlider(
+                                label=comp,
+                                v_model=('w_threshold_'+str(idc), [0, 1]),
+                                min=0.0,
+                                max=1.0,
+                                step=0.001,
+                                density='compact',
+                                hide_details=True,
+                            )
 
                     # Rendering settings
                     with v.VCard(
@@ -564,7 +587,8 @@ class App:
                                 cols="1", align_self="center pa-0 ma-0"
                             ):
                                 html.Div(
-                                    "{{ name }}",  # : Scale({{ data.scale }}) Clamp({{ data.clamp[0] }}, {{ data.clamp[1] }})
+                                    # : Scale({{ data.scale }}) Clamp({{ data.clamp[0] }}, {{ data.clamp[1] }})
+                                    "{{ name }}",
                                     classes="text-body-2 text-center text-truncate",
                                     style="transform: rotate(-90deg) translateY(calc(-100% - 0.2rem));  width: 5.5rem;",
                                 )
@@ -625,7 +649,7 @@ def _remove_padding_uniform(data: np.ndarray) -> np.ndarray:
         indices = np.array([n, -n - 1])
 
     if n != 0:
-        data = data[n : -n - 1, n : -n - 1, n : -n - 1]
+        data = data[n: -n - 1, n: -n - 1, n: -n - 1]
 
     return data
 
