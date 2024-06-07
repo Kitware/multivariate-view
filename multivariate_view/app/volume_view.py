@@ -40,6 +40,9 @@ class VolumeView:
         volume_property = vtkVolumeProperty()
         volume_property.IndependentComponentsOff()
         volume_property.SetInterpolationTypeToLinear()
+        volume_property.SetAmbient(0.5)
+        volume_property.SetSpecular(0.9)
+        volume_property.SetSpecularPower(10)
 
         # Fix the scalar opacity to be a no-op
         pwf = volume_property.GetScalarOpacity()
