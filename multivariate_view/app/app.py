@@ -333,7 +333,7 @@ class App:
         server = self.server
         ctrl = self.ctrl
 
-        self.state.trame__title = "Multi Variate Viewer"
+        self.state.trame__title = "MultivariateView"
         self.state.trame__favicon = ASSETS.favicon
 
         with VAppLayout(server, full_height=True) as layout:
