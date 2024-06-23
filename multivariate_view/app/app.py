@@ -115,6 +115,10 @@ class App:
         # Remember the data shape (without the multichannel part)
         self.data_shape = data.shape[:-1]
         self.num_channels = data.shape[-1]
+        
+        self.raw_unpadded_flattened_data = data.reshape(
+            np.prod(self.data_shape), self.num_channels
+        )
 
         if self.normalize_channels:
             # Normalize each channel to be between 0 and 1
@@ -244,6 +248,30 @@ class App:
         # Update the view
         self.ctrl.view_update()
 
+        # Also update the statistics
+        self.update_displayed_voxel_means()
+
+    @change("show_groups")
+    def update_displayed_voxel_means(self, **kwargs):
+        first_call = not hasattr(self, '_initial_display_voxel_means_call')
+        if not first_call and not self.voxel_means_enabled:
+            # Only perform this on the first call if voxel means is not enabled
+            return
+
+        if first_call:
+            self._initial_display_voxel_means_call = False
+
+        alpha = self.volume_view.mask_reference[self.nonzero_indices]
+        raw_nonzero = self.raw_unpadded_flattened_data[self.nonzero_indices]
+
+        display_data = raw_nonzero[alpha == 1]
+        labels = self.state.component_labels
+
+        means = (display_data.sum(axis=0) / display_data.shape[0])
+        means *= 100 / means.sum()
+        displayed_voxel_means = {k: v for k, v in zip(labels, means.tolist())}
+        self.state.displayed_voxel_means = displayed_voxel_means
+
     @change("data_channels")
     def on_data_change(self, data_channels, **_):
         print("data_channels - changed")
@@ -313,6 +341,10 @@ class App:
     @property
     def lens_enabled(self):
         return "lens" in self.state.show_groups
+
+    @property
+    def voxel_means_enabled(self):
+        return "voxel-means" in self.state.show_groups
 
     @life_cycle.server_ready
     def initial_reset_camera(self, **kwargs):
@@ -430,6 +462,15 @@ class App:
                                 icon="mdi-chart-histogram", value="sampling"
                             )
                             v.VBtn(icon="mdi-crop", value="clip")
+                            v.VBtn(
+                                icon="mdi-tune-variant",
+                                value="tune-data",
+                                v_if="data_channels && Object.keys(data_channels).length",
+                            )
+                            v.VBtn(
+                                icon="mdi-sigma",
+                                value="voxel-means",
+                            )
 
                         v.VSpacer()
 
@@ -652,6 +693,23 @@ class App:
                                     prepend_icon="mdi-magnify",
                                     update_modelValue="data_channels[name].focus_range = $event; array_modified=name; flushState('data_channels')",
                                 )
+
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('voxel-means')",
+                        classes="py-1",
+                    ):
+                        with v.VTable(density="compact"):
+                            with html.Tbody():
+                                with html.Tr(
+                                    v_for="v, k in displayed_voxel_means",
+                                    key="k",
+                                ):
+                                    html.Td("{{ k }}", classes="text-caption")
+                                    html.Td(
+                                        "{{ v.toFixed(2) }}",
+                                        classes="text-caption",
+                                    )
 
             # print(layout)
             return layout
