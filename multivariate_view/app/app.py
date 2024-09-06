@@ -43,9 +43,17 @@ class App:
             dest="preprocess",
             action='store_true',
         )
+        self.server.cli.add_argument(
+            "--ignore-fields",
+            help="Fields to ignore from the dataset",
+            default=[],
+            nargs='+',
+            type=str,
+        )
 
         args, _ = self.server.cli.parse_known_args()
         self.enable_preprocessing = args.preprocess
+        self.ignore_fields = args.ignore_fields
         file_to_load = args.data
         if file_to_load is None:
             EXAMPLE_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,6 +92,15 @@ class App:
 
     def load_data(self, file_to_load):
         header, data = load_dataset(Path(file_to_load))
+
+        for key in self.ignore_fields:
+            if key in header:
+                index_to_remove = header.index(key)
+                data = np.delete(data, index_to_remove, axis=3)
+            else:
+                print(
+                    f"Warning: field {key} is not part of the provided dataset.\nThe available fields are {header}"
+                )
 
         self.state.component_labels = header
 
