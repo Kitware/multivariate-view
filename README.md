@@ -17,6 +17,17 @@ pip install multivariate-view
 Next, run `multivariate-view`, or `mv-view`, to start the application. If no `--data` path is provided, it will
 automatically download and load the example dataset pictured above.
 
+## Development build
+
+```bash
+cd vue-components
+npm i
+npm run build
+cd -
+pip install -U pip
+pip install -e .
+```
+
 # Example Data
 The example dataset pictured above is from the reconstruction of an X-ray fluorescence tomography of a mixed ionic-electronic conductor (MIEC) from the following article:
 
