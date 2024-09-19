@@ -3,11 +3,13 @@ from pathlib import Path
 import numba
 import numpy as np
 
+import plotly.graph_objects as go
+
 from trame.app import get_server
 from trame.assets.remote import download_file_from_google_drive
 from trame.decorators import TrameApp, change, life_cycle
 from trame.ui.vuetify3 import VAppLayout
-from trame.widgets import client, html, vtk, vuetify3 as v
+from trame.widgets import client, html, plotly, vtk, vuetify3 as v
 from multivariate_view.widgets import radvolviz
 from .assets import ASSETS
 
@@ -271,6 +273,7 @@ class App:
         means *= 100 / means.sum()
         displayed_voxel_means = {k: v for k, v in zip(labels, means.tolist())}
         self.state.displayed_voxel_means = displayed_voxel_means
+        self.server.controller.figure_update(_bar_plot(displayed_voxel_means))
 
     @change("data_channels")
     def on_data_change(self, data_channels, **_):
@@ -344,7 +347,9 @@ class App:
 
     @property
     def voxel_means_enabled(self):
-        return "voxel-means" in self.state.show_groups
+        return ("voxel-means" in self.state.show_groups) or (
+            "voxel-means-plot" in self.state.show_groups
+        )
 
     @life_cycle.server_ready
     def initial_reset_camera(self, **kwargs):
@@ -470,6 +475,10 @@ class App:
                             v.VBtn(
                                 icon="mdi-sigma",
                                 value="voxel-means",
+                            )
+                            v.VBtn(
+                                icon="mdi-align-vertical-bottom",
+                                value="voxel-means-plot",
                             )
 
                         v.VSpacer()
@@ -712,6 +721,20 @@ class App:
                                         style="text-align: right; padding-right: 10rem;",
                                     )
 
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('voxel-means-plot')",
+                        classes="py-1",
+                    ):
+                        with html.Div(style="width: 100%; height: 25rem;"):
+                            figure = plotly.Figure(
+                                display_logo=False,
+                                display_mode_bar="true",
+                            )
+                            self.server.controller.figure_update = (
+                                figure.update
+                            )
+
             # print(layout)
             return layout
 
@@ -755,3 +778,9 @@ def _normalize_data(data: np.ndarray, new_min: float = 0, new_max: float = 1):
     return (new_max - new_min) * (data.astype(np.float64) - min_val) / (
         max_val - min_val
     ) + new_min
+
+
+def _bar_plot(key_values):
+    return go.Figure(
+        data=go.Bar(x=list(key_values.keys()), y=list(key_values.values()))
+    ).update_layout(yaxis_title="%")
