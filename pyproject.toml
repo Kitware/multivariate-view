@@ -10,11 +10,13 @@ dependencies = [
   'h5py',
   'numba',
   'pillow',
+  'plotly',
   'requests',
   'scipy',
   'trame',
   'trame-vtk',
   'trame-vuetify',
+  'trame-plotly',
   'vtk',
 ]
 
