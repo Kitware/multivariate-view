@@ -709,6 +709,7 @@ class App:
                                     html.Td(
                                         "{{ v.toFixed(2) }}",
                                         classes="text-caption",
+                                        style="text-align: right; padding-right: 10rem;",
                                     )
 
             # print(layout)
