@@ -267,7 +267,7 @@ class App:
         display_data = raw_nonzero[alpha == 1]
         labels = self.state.component_labels
 
-        means = (display_data.sum(axis=0) / display_data.shape[0])
+        means = display_data.sum(axis=0) / display_data.shape[0]
         means *= 100 / means.sum()
         displayed_voxel_means = {k: v for k, v in zip(labels, means.tolist())}
         self.state.displayed_voxel_means = displayed_voxel_means

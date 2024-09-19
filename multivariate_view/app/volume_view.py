@@ -103,7 +103,6 @@ class VolumeView:
 def set_array_to_image_data(
     array: np.ndarray, image_data: vtkImageData, shape: tuple[int], clear=True
 ):
-
     vtk_array = np_s.numpy_to_vtk(array, deep=True)
     image_data.SetDimensions(shape)
     pd = image_data.GetPointData()
