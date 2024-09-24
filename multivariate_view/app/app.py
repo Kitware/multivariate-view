@@ -716,7 +716,7 @@ class App:
                                 ):
                                     html.Td("{{ k }}", classes="text-caption")
                                     html.Td(
-                                        "{{ v.toFixed(2) }}",
+                                        "{{ v.toFixed(2) }}%",
                                         classes="text-caption",
                                         style="text-align: right; padding-right: 10rem;",
                                     )
