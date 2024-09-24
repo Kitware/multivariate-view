@@ -726,7 +726,7 @@ class App:
                         v_show="show_control_panel && show_groups.includes('voxel-means-plot')",
                         classes="py-1",
                     ):
-                        with html.Div(style="width: 100%; height: 25rem;"):
+                        with html.Div(style="width: 100%; height: 10rem;"):
                             figure = plotly.Figure(
                                 display_logo=False,
                                 display_mode_bar="true",
@@ -783,4 +783,4 @@ def _normalize_data(data: np.ndarray, new_min: float = 0, new_max: float = 1):
 def _bar_plot(key_values):
     return go.Figure(
         data=go.Bar(x=list(key_values.keys()), y=list(key_values.values()))
-    ).update_layout(yaxis_title="%")
+    ).update_layout(yaxis_title="%", margin=dict(l=10, r=10, t=25, b=10))
