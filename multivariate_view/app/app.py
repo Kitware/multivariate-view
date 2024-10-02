@@ -486,6 +486,8 @@ class App:
                                 step=0.001,
                                 density='compact',
                                 hide_details=True,
+                                thumb_label='always',
+                                style="padding-top:30px; padding-right: 10px",
                             )
 
                     # Rendering settings
