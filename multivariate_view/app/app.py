@@ -267,10 +267,24 @@ class App:
         raw_nonzero = self.raw_unpadded_flattened_data[self.nonzero_indices]
 
         display_data = raw_nonzero[alpha == 1]
-        labels = self.state.component_labels
+        if display_data.shape[0] > 0:
+            # divide each row with the row sum to create percentages for each voxel
+            row_sums = display_data.sum(axis=1)
+            percentage_per_voxel = np.divide(
+                display_data,
+                row_sums[:, None],
+                out=np.zeros_like(display_data),
+                where=row_sums[:, None] != 0,
+            )
+            means = (
+                100.0
+                * percentage_per_voxel.sum(axis=0)
+                / percentage_per_voxel.shape[0]
+            )
+        else:
+            means = np.zeros(display_data.shape[1])
 
-        means = display_data.sum(axis=0) / display_data.shape[0]
-        means *= 100 / means.sum()
+        labels = self.state.component_labels
         displayed_voxel_means = {k: v for k, v in zip(labels, means.tolist())}
         self.state.displayed_voxel_means = displayed_voxel_means
         self.server.controller.figure_update(_bar_plot(displayed_voxel_means))
