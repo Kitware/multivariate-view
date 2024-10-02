@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numba
+import math
 import numpy as np
 
 from trame.app import get_server
@@ -23,7 +24,9 @@ from .volume_view import VolumeView
 
 # We will cache downloaded data examples in this directory.
 EXAMPLE_DATA_DIR = Path(__file__).parent.parent.parent / 'data'
-EXAMPLE_DATA_PATH = EXAMPLE_DATA_DIR / 'CeCoFeGd_doi_10.1038_s43246-022-00259-x.h5'
+EXAMPLE_DATA_PATH = (
+    EXAMPLE_DATA_DIR / 'CeCoFeGd_doi_10.1038_s43246-022-00259-x.h5'
+)
 EXAMPLE_GOOGLE_DRIVE_ID = '1nI_hzrqbGBypUU7jMbWnF7-PkqNMiwqB'
 EXAMPLE_DATA_REF = 'https://doi.org/10.1038/s43246-022-00259-x'
 
@@ -67,8 +70,9 @@ class App:
                 # Automatically download the example dataset, and put it in the
                 # data directory.
                 print(f'Downloading example dataset to: {EXAMPLE_DATA_PATH}')
-                download_file_from_google_drive(EXAMPLE_GOOGLE_DRIVE_ID,
-                                                EXAMPLE_DATA_PATH)
+                download_file_from_google_drive(
+                    EXAMPLE_GOOGLE_DRIVE_ID, EXAMPLE_DATA_PATH
+                )
 
             file_to_load = EXAMPLE_DATA_PATH
 
@@ -88,20 +92,51 @@ class App:
 
     def load_data(self, file_to_load):
         header, data = load_dataset(Path(file_to_load))
-
         self.state.component_labels = header
 
+        fields = None
         if self.enable_preprocessing:
-            self.state.data_channels = {}
-            # FIXME fill the data channels
-            # => { key: { color: "", clamp: [0, 1], scale: 1 }, ... }
-            self.state.data_channels["R"] = {
-                "color": "rgb(100, 50, 245)",
-                "scale": 1,
-                "clamp": [0, 1],
-            }
-        else:
-            self.state.data_channels = None
+            self.arrays_raw = {}
+            self.arrays_rescaled = {}
+            fields = {}
+
+            for idx, name in enumerate(header):
+                array = data
+                data_dim = len(data.shape) - 1
+                if data_dim == 3:  # 3D
+                    array = data[:, :, :, idx]
+                elif data_dim == 2:  # 2D
+                    array = data[:, :, idx]
+                elif data_dim == 1:  # 1D
+                    array = data[:, idx]
+                elif data_dim == 0:  # 0D
+                    array = data[idx]
+
+                array = array.flatten()
+                min_val = float(array.min())
+                max_val = float(array.max())
+
+                if math.isnan(min_val) and math.isnan(max_val):
+                    continue
+
+                hist_count = np.histogram(array, bins=200)[0]
+                max_count = hist_count.max()
+                hist = [int(v / max_count * 100) for v in hist_count.tolist()]
+                fields[name] = {
+                    "label": name,
+                    "data_range": [min_val, max_val],
+                    "focus_range": [min_val, max_val],
+                    "histogram": hist,
+                    "enabled": True,
+                    "color": "black",
+                }
+
+                # Save array for later processing
+                self.arrays_raw[name] = array
+                self.arrays_rescaled[name] = None
+
+        # Provide control on data arrays
+        self.state.data_channels = fields
 
         # Remove padding so it will render faster.
         # This removes faces that are all zeros recursively until
@@ -159,31 +194,6 @@ class App:
         angle = np.radians(self.state.w_rotation)
         gbc = rotate_coordinates(self.unrotated_gbc, angle)
 
-        # ---------------------------------------------------------------------
-        # FIXME: update color for each channels in self.state.data_channels
-        # ---------------------------------------------------------------------
-        if self.enable_preprocessing:
-            # Dummy example code
-            if "R" in self.state.data_channels:
-                r = (
-                    int(2.8 * self.state.w_rotation)
-                    if self.state.w_rotation < 90
-                    else 128
-                )
-                g = (
-                    int(2.8 * (self.state.w_rotation - 90))
-                    if 90 < self.state.w_rotation < 180
-                    else 128
-                )
-                b = (
-                    int(2.8 * (self.state.w_rotation - 180))
-                    if 180 < self.state.w_rotation < 270
-                    else 128
-                )
-                self.state.data_channels["R"]["color"] = f"rgb({r}, {g}, {b})"
-            self.state.dirty("data_channels")
-        # ---------------------------------------------------------------------
-
         self.gbc_data = gbc
         self.rgb_data = gbc_to_rgb(gbc)
 
@@ -231,7 +241,56 @@ class App:
 
     @change("data_channels")
     def on_data_change(self, data_channels, **_):
-        print("data_channels", data_channels)
+        print("data_channels - changed")
+        self.state.component_labels = [
+            item.get("label")
+            for item in data_channels.values()
+            if item.get("enabled")
+        ]
+        arrays = []
+        for key, item in data_channels.items():
+            if item.get("enabled"):
+                if (
+                    key == self.state.array_modified
+                    or self.arrays_rescaled.get(key) is None
+                ):
+                    print(f"data_channels - compute rescale for {key}")
+                    focus_range = item.get("focus_range")
+                    ratio = focus_range[1] - focus_range[0]
+                    offset = focus_range[0]
+                    array = self.arrays_raw[key]
+                    n_array = (array.astype(np.float64) - offset) / ratio
+                    n_array = np.clip(n_array, 0, 1)
+
+                    # Handle NaN if provided
+                    if self.nan_replacement is not None:
+                        n_array[np.isnan(n_array)] = float(
+                            self.nan_replacement
+                        )
+
+                    self.arrays_rescaled[key] = n_array
+                    print(f"data_channels - compute rescale for {key} - Done")
+
+                arrays.append(self.arrays_rescaled[key])
+
+        # Update rest of pipeline
+        print(" - stack")
+        data = np.stack(arrays)
+
+        # Store the data in a flattened form. It is easier to work with.
+        print(" - reshape")
+        flattened_data = data.reshape(np.prod(self.data_shape), len(arrays))
+        print(" - non zero indices")
+        self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
+
+        # Only store nonzero data. We will reconstruct the zeros later.
+        print(" - non zero data")
+        self.nonzero_data = flattened_data[self.nonzero_indices]
+
+        # Trigger an update of the data
+        print(" - gbc")
+        self.update_gbc()
+        print("data_channels - done")
 
     @change("w_rendering_shadow", "w_rendering_bg")
     def on_rendering_settings(
@@ -310,33 +369,7 @@ class App:
 
     def _build_ui(self):
         self.state.setdefault('lens_center', [0, 0])
-
-        # FIXME
-        # self.state.setdefault(
-        #     'data_channels',
-        #     {
-        #         "A test something super long": {
-        #             "color": "red",
-        #             "clamp": [0, 1],
-        #             "scale": 1,
-        #         },
-        #         "B igger text": {
-        #             "color": "green",
-        #             "clamp": [0, 1],
-        #             "scale": 1,
-        #         },
-        #         "G": {
-        #             "color": "blue",
-        #             "clamp": [0, 1],
-        #             "scale": 1,
-        #         },
-        #         "R": {
-        #             "color": "purple",
-        #             "clamp": [0, 1],
-        #             "scale": 1,
-        #         },
-        #     },
-        # )
+        self.state.setdefault("array_modified", '')
 
         server = self.server
         ctrl = self.ctrl
@@ -389,6 +422,11 @@ class App:
                             divided=True,
                             classes="mr-4",
                         ):
+                            v.VBtn(
+                                icon="mdi-database",
+                                value="tune-data",
+                                v_if="data_channels && Object.keys(data_channels).length",
+                            )
                             v.VBtn(icon="mdi-magnify", value="lens")
                             v.VBtn(icon="mdi-palette", value="color")
                             v.VBtn(
@@ -399,11 +437,6 @@ class App:
                                 icon="mdi-chart-histogram", value="sampling"
                             )
                             v.VBtn(icon="mdi-crop", value="clip")
-                            v.VBtn(
-                                icon="mdi-tune-variant",
-                                value="tune-data",
-                                v_if="data_channels && Object.keys(data_channels).length",
-                            )
 
                         v.VSpacer()
 
@@ -582,25 +615,49 @@ class App:
                                     "`border-color: ${data.color} !important;`",
                                 ),
                             ):
+                                with v.VRow(classes="mx-0"):
+                                    v.VTextField(
+                                        model_value=("data.label",),
+                                        density='compact',
+                                        hide_details=True,
+                                        prepend_icon="mdi-tag-outline",
+                                        variant="outlined",
+                                        update_modelValue="data_channels[name].label = $event; array_modified='';flushState('data_channels')",
+                                    )
+                                    v.VSwitch(
+                                        model_value=("data.enabled",),
+                                        density='compact',
+                                        hide_details=True,
+                                        inset=True,
+                                        color="green",
+                                        classes="ml-2",
+                                        true_icon="mdi-check",
+                                        false_icon="mdi-close",
+                                        update_modelValue="data_channels[name].enabled = $event; array_modified=''; flushState('data_channels')",
+                                    )
+                                with html.Div(
+                                    style="height: 4rem;",
+                                    classes="align-baseline d-flex mt-5 ml-12 mr-2 mb-n3",
+                                ):
+                                    html.Div(
+                                        v_for="v, idx in data.histogram",
+                                        key="idx",
+                                        style=(
+                                            "`height: ${v}%; width: 0.5%;`",
+                                        ),
+                                        classes="d-flex bg-blue",
+                                    )
                                 v.VRangeSlider(
-                                    model_value=('data.clamp',),
-                                    min=0.0,
-                                    max=1.0,
-                                    step=0.001,
-                                    density='compact',
-                                    hide_details=True,
-                                    prepend_icon="mdi-scissors-cutting",
-                                    update_modelValue="data_channels[name].clamp = $event; flushState('data_channels')",
-                                )
-                                v.VSlider(
-                                    model_value=('data.scale', 1),
-                                    min=0.001,
-                                    max=5,
-                                    step=0.001,
+                                    model_value=('data.focus_range',),
+                                    min=("data.data_range[0]",),
+                                    max=("data.data_range[1]",),
+                                    step=(
+                                        "(data.data_range[1] - data.data_range[0]) / 255",
+                                    ),
                                     density='compact',
                                     hide_details=True,
                                     prepend_icon="mdi-magnify",
-                                    update_modelValue="data_channels[name].scale = $event; flushState('data_channels')",
+                                    update_modelValue="data_channels[name].focus_range = $event; array_modified=name; flushState('data_channels')",
                                 )
 
             # print(layout)
