@@ -38,6 +38,9 @@ class App:
             "--data", help="Path to the file to load", default=None
         )
         self.server.cli.add_argument(
+            "--nan", help="Replace NaN to specific value", default=None
+        )
+        self.server.cli.add_argument(
             "--enable-preprocessing",
             help="Enable additional control on data pre-processing",
             dest="preprocess",
@@ -46,6 +49,7 @@ class App:
 
         args, _ = self.server.cli.parse_known_args()
         self.enable_preprocessing = args.preprocess
+        self.nan_replacement = args.nan
         file_to_load = args.data
         if file_to_load is None:
             EXAMPLE_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -108,6 +112,10 @@ class App:
         # Remember the data shape (without the multichannel part)
         self.data_shape = data.shape[:-1]
         self.num_channels = data.shape[-1]
+
+        # Handle NaN if provided
+        if self.nan_replacement is not None:
+            data[np.isnan(data)] = float(self.nan_replacement)
 
         # Normalize the data to be between 0 and 1
         data = _normalize_data(data)
