@@ -14,7 +14,7 @@ def gbc_to_hsl(gbc: np.ndarray, lightness=0.55) -> np.ndarray:
     invalid = radius > 1
 
     if np.any(invalid):
-        gbc[invalid] /= radius[invalid]
+        gbc[invalid] /= radius[invalid, np.newaxis]
 
     hue = np.arctan2(gbc[:, 1], gbc[:, 0]) + np.pi / 2
     hue = np.mod(hue, np.pi * 2) / (np.pi * 2)
