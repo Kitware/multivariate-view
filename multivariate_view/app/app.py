@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import numba
-import math
 import numpy as np
 
 from trame.app import get_server
@@ -41,18 +40,28 @@ class App:
             "--data", help="Path to the file to load", default=None
         )
         self.server.cli.add_argument(
-            "--nan", help="Replace NaN to specific value", default=None
+            "--nan", help="Replace NaN to specific value", default=0
         )
         self.server.cli.add_argument(
             "--enable-preprocessing",
             help="Enable additional control on data pre-processing",
             dest="preprocess",
             action='store_true',
+            default=True,
+        )
+        self.server.cli.add_argument(
+            "--enable-normalize",
+            help="Enable normalizing each channel to be between 0 and 1",
+            dest="normalize",
+            action="store_true",
+            default=False,
         )
 
         args, _ = self.server.cli.parse_known_args()
         self.enable_preprocessing = args.preprocess
         self.nan_replacement = args.nan
+        self.enable_normalize = args.normalize
+
         file_to_load = args.data
         if file_to_load is None:
             EXAMPLE_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -94,6 +103,27 @@ class App:
         header, data = load_dataset(Path(file_to_load))
         self.state.component_labels = header
 
+        # Handle NaN if provided
+        if self.nan_replacement is not None:
+            data[np.isnan(data)] = float(self.nan_replacement)
+
+        # Remove padding so it will render faster.
+        # This removes faces that are all zeros recursively until
+        # the first non-zero voxel is hit.
+        # Our sample data has a *lot* of padding.
+        data = _remove_padding_uniform(data)
+
+        # Remember the data shape (without the multichannel part)
+        self.data_shape = data.shape[:-1]
+        self.num_channels = data.shape[-1]
+
+        if self.enable_normalize:
+            # Normalize each channel to be between 0 and 1
+            for i in range(data.shape[-1]):
+                data[:, :, :, i] = _normalize_data(data[:, :, :, i])
+        else:
+            data = _normalize_data(data)
+
         fields = None
         if self.enable_preprocessing:
             self.arrays_raw = {}
@@ -101,23 +131,9 @@ class App:
             fields = {}
 
             for idx, name in enumerate(header):
-                array = data
-                data_dim = len(data.shape) - 1
-                if data_dim == 3:  # 3D
-                    array = data[:, :, :, idx]
-                elif data_dim == 2:  # 2D
-                    array = data[:, :, idx]
-                elif data_dim == 1:  # 1D
-                    array = data[:, idx]
-                elif data_dim == 0:  # 0D
-                    array = data[idx]
-
-                array = array.flatten()
-                min_val = float(array.min())
-                max_val = float(array.max())
-
-                if math.isnan(min_val) and math.isnan(max_val):
-                    continue
+                array = data[:, :, :, idx]
+                min_val = np.nanmin(array)
+                max_val = np.nanmax(array)
 
                 hist_count = np.histogram(array, bins=200)[0]
                 max_count = hist_count.max()
@@ -137,23 +153,6 @@ class App:
 
         # Provide control on data arrays
         self.state.data_channels = fields
-
-        # Remove padding so it will render faster.
-        # This removes faces that are all zeros recursively until
-        # the first non-zero voxel is hit.
-        # Our sample data has a *lot* of padding.
-        data = _remove_padding_uniform(data)
-
-        # Remember the data shape (without the multichannel part)
-        self.data_shape = data.shape[:-1]
-        self.num_channels = data.shape[-1]
-
-        # Handle NaN if provided
-        if self.nan_replacement is not None:
-            data[np.isnan(data)] = float(self.nan_replacement)
-
-        # Normalize the data to be between 0 and 1
-        data = _normalize_data(data)
 
         # Store the data in a flattened form. It is easier to work with.
         flattened_data = data.reshape(
@@ -255,42 +254,30 @@ class App:
                     or self.arrays_rescaled.get(key) is None
                 ):
                     print(f"data_channels - compute rescale for {key}")
-                    focus_range = item.get("focus_range")
-                    ratio = focus_range[1] - focus_range[0]
-                    offset = focus_range[0]
-                    array = self.arrays_raw[key]
-                    n_array = (array.astype(np.float64) - offset) / ratio
-                    n_array = np.clip(n_array, 0, 1)
+                    focus_range = item["focus_range"]
 
-                    # Handle NaN if provided
-                    if self.nan_replacement is not None:
-                        n_array[np.isnan(n_array)] = float(
-                            self.nan_replacement
-                        )
+                    array = self.arrays_raw[key]
+                    n_array = np.clip(array, *focus_range)
+
+                    if self.enable_normalize:
+                        n_array = _normalize_data(n_array)
 
                     self.arrays_rescaled[key] = n_array
-                    print(f"data_channels - compute rescale for {key} - Done")
 
                 arrays.append(self.arrays_rescaled[key])
 
         # Update rest of pipeline
-        print(" - stack")
-        data = np.stack(arrays)
+        data = np.stack(arrays, axis=3)
 
         # Store the data in a flattened form. It is easier to work with.
-        print(" - reshape")
         flattened_data = data.reshape(np.prod(self.data_shape), len(arrays))
-        print(" - non zero indices")
         self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
 
         # Only store nonzero data. We will reconstruct the zeros later.
-        print(" - non zero data")
         self.nonzero_data = flattened_data[self.nonzero_indices]
 
         # Trigger an update of the data
-        print(" - gbc")
         self.update_gbc()
-        print("data_channels - done")
 
     @change("w_rendering_shadow", "w_rendering_bg")
     def on_rendering_settings(
