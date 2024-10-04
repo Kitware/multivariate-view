@@ -50,9 +50,8 @@ class App:
             default=True,
         )
         self.server.cli.add_argument(
-            "--enable-normalize",
-            help="Enable normalizing each channel to be between 0 and 1",
-            dest="normalize",
+            "--normalize-channels",
+            help="Normalize each channel to be between 0 and 1",
             action="store_true",
             default=False,
         )
@@ -60,7 +59,7 @@ class App:
         args, _ = self.server.cli.parse_known_args()
         self.enable_preprocessing = args.preprocess
         self.nan_replacement = args.nan
-        self.enable_normalize = args.normalize
+        self.normalize_channels = args.normalize_channels
 
         file_to_load = args.data
         if file_to_load is None:
@@ -117,7 +116,7 @@ class App:
         self.data_shape = data.shape[:-1]
         self.num_channels = data.shape[-1]
 
-        if self.enable_normalize:
+        if self.normalize_channels:
             # Normalize each channel to be between 0 and 1
             for i in range(data.shape[-1]):
                 data[:, :, :, i] = _normalize_data(data[:, :, :, i])
@@ -130,12 +129,19 @@ class App:
             self.arrays_rescaled = {}
             fields = {}
 
+            all_zero_voxels = np.all(np.isclose(data, 0), axis=3)
             for idx, name in enumerate(header):
                 array = data[:, :, :, idx]
                 min_val = np.nanmin(array)
                 max_val = np.nanmax(array)
 
-                hist_count = np.histogram(array, bins=200)[0]
+                # Remove voxels where all values are 0 from the histogram.
+                histogram_array = array[~all_zero_voxels]
+                hist_count = np.histogram(histogram_array, bins=200)[0].astype(float)
+
+                # Perform log scaling, as that is easier to see. Ignore zeros.
+                zero_counts = np.isclose(hist_count, 0)
+                hist_count[~zero_counts] = np.log10(hist_count[~zero_counts])
                 max_count = hist_count.max()
                 hist = [int(v / max_count * 100) for v in hist_count.tolist()]
                 fields[name] = {
@@ -259,7 +265,7 @@ class App:
                     array = self.arrays_raw[key]
                     n_array = np.clip(array, *focus_range)
 
-                    if self.enable_normalize:
+                    if self.normalize_channels:
                         n_array = _normalize_data(n_array)
 
                     self.arrays_rescaled[key] = n_array
