@@ -3,11 +3,13 @@ from pathlib import Path
 import numba
 import numpy as np
 
+import plotly.graph_objects as go
+
 from trame.app import get_server
 from trame.assets.remote import download_file_from_google_drive
 from trame.decorators import TrameApp, change, life_cycle
 from trame.ui.vuetify3 import VAppLayout
-from trame.widgets import client, html, vtk, vuetify3 as v
+from trame.widgets import client, html, plotly, vtk, vuetify3 as v
 from multivariate_view.widgets import radvolviz
 from .assets import ASSETS
 
@@ -115,6 +117,10 @@ class App:
         # Remember the data shape (without the multichannel part)
         self.data_shape = data.shape[:-1]
         self.num_channels = data.shape[-1]
+        
+        self.raw_unpadded_flattened_data = data.reshape(
+            np.prod(self.data_shape), self.num_channels
+        )
 
         if self.normalize_channels:
             # Normalize each channel to be between 0 and 1
@@ -244,6 +250,45 @@ class App:
         # Update the view
         self.ctrl.view_update()
 
+        # Also update the statistics
+        self.update_displayed_voxel_means()
+
+    @change("show_groups")
+    def update_displayed_voxel_means(self, **kwargs):
+        first_call = not hasattr(self, '_initial_display_voxel_means_call')
+        if not first_call and not self.voxel_means_enabled:
+            # Only perform this on the first call if voxel means is not enabled
+            return
+
+        if first_call:
+            self._initial_display_voxel_means_call = False
+
+        alpha = self.volume_view.mask_reference[self.nonzero_indices]
+        raw_nonzero = self.raw_unpadded_flattened_data[self.nonzero_indices]
+
+        display_data = raw_nonzero[alpha == 1]
+        if display_data.shape[0] > 0:
+            # divide each row with the row sum to create percentages for each voxel
+            row_sums = display_data.sum(axis=1)
+            percentage_per_voxel = np.divide(
+                display_data,
+                row_sums[:, None],
+                out=np.zeros_like(display_data),
+                where=row_sums[:, None] != 0,
+            )
+            means = (
+                100.0
+                * percentage_per_voxel.sum(axis=0)
+                / percentage_per_voxel.shape[0]
+            )
+        else:
+            means = np.zeros(display_data.shape[1])
+
+        labels = self.state.component_labels
+        displayed_voxel_means = {k: v for k, v in zip(labels, means.tolist())}
+        self.state.displayed_voxel_means = displayed_voxel_means
+        self.server.controller.figure_update(_bar_plot(displayed_voxel_means))
+
     @change("data_channels")
     def on_data_change(self, data_channels, **_):
         print("data_channels - changed")
@@ -313,6 +358,12 @@ class App:
     @property
     def lens_enabled(self):
         return "lens" in self.state.show_groups
+
+    @property
+    def voxel_means_enabled(self):
+        return ("voxel-means" in self.state.show_groups) or (
+            "voxel-means-plot" in self.state.show_groups
+        )
 
     @life_cycle.server_ready
     def initial_reset_camera(self, **kwargs):
@@ -430,6 +481,19 @@ class App:
                                 icon="mdi-chart-histogram", value="sampling"
                             )
                             v.VBtn(icon="mdi-crop", value="clip")
+                            v.VBtn(
+                                icon="mdi-tune-variant",
+                                value="tune-data",
+                                v_if="data_channels && Object.keys(data_channels).length",
+                            )
+                            v.VBtn(
+                                icon="mdi-sigma",
+                                value="voxel-means",
+                            )
+                            v.VBtn(
+                                icon="mdi-align-vertical-bottom",
+                                value="voxel-means-plot",
+                            )
 
                         v.VSpacer()
 
@@ -653,6 +717,38 @@ class App:
                                     update_modelValue="data_channels[name].focus_range = $event; array_modified=name; flushState('data_channels')",
                                 )
 
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('voxel-means')",
+                        classes="py-1",
+                    ):
+                        with v.VTable(density="compact"):
+                            with html.Tbody():
+                                with html.Tr(
+                                    v_for="v, k in displayed_voxel_means",
+                                    key="k",
+                                ):
+                                    html.Td("{{ k }}", classes="text-caption")
+                                    html.Td(
+                                        "{{ v.toFixed(2) }}%",
+                                        classes="text-caption",
+                                        style="text-align: right; padding-right: 10rem;",
+                                    )
+
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('voxel-means-plot')",
+                        classes="py-1",
+                    ):
+                        with html.Div(style="width: 100%; height: 10rem;"):
+                            figure = plotly.Figure(
+                                display_logo=False,
+                                display_mode_bar="true",
+                            )
+                            self.server.controller.figure_update = (
+                                figure.update
+                            )
+
             # print(layout)
             return layout
 
@@ -696,3 +792,9 @@ def _normalize_data(data: np.ndarray, new_min: float = 0, new_max: float = 1):
     return (new_max - new_min) * (data.astype(np.float64) - min_val) / (
         max_val - min_val
     ) + new_min
+
+
+def _bar_plot(key_values):
+    return go.Figure(
+        data=go.Bar(x=list(key_values.keys()), y=list(key_values.values()))
+    ).update_layout(yaxis_title="%", margin=dict(l=10, r=10, t=25, b=10))
