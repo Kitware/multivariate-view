@@ -123,7 +123,7 @@ class App:
         if self.opacity_channel is not None:
             # Extract the opacity data
             opacity_idx = header.index(self.opacity_channel)
-            self.opacity_data = data[:, :, :, opacity_idx]
+            self.opacity_data = _normalize_data(data[:, :, :, opacity_idx])
 
             header.pop(opacity_idx)
             data = np.delete(data, opacity_idx, axis=3)
