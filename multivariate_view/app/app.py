@@ -265,6 +265,7 @@ class App:
         'lens_center',
         'show_groups',
         'w_lradius',
+        'w_linvert',
         'w_clip_x',
         'w_clip_y',
         'w_clip_z',
@@ -444,6 +445,8 @@ class App:
         x, y = self.state.lens_center
 
         lens_alpha = _compute_alpha(np.array([x, y]), r, gbc_data)
+        if self.state.w_linvert:
+            lens_alpha = np.invert(lens_alpha)
 
         # Combine the lens alpha with the current alpha
         return np.logical_and(alpha, lens_alpha)
@@ -582,6 +585,16 @@ class App:
                             density='compact',
                             prepend_icon="mdi-radius-outline",
                             messages="Adjust lens size",
+                        )
+                        v.VSwitch(
+                            label="Invert lens",
+                            v_model=('w_linvert', False),
+                            messages="Invert lens",
+                            density="compact",
+                            hide_details=True,
+                            inset=True,
+                            color="green",
+                            classes="ml-2",
                         )
 
                     # Color / Rotation management
