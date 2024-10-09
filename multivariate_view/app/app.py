@@ -57,11 +57,17 @@ class App:
             action="store_true",
             default=False,
         )
+        self.server.cli.add_argument(
+            "--opacity-channel",
+            help="Set the specified channel to be opacity only",
+            default=None,
+        )
 
         args, _ = self.server.cli.parse_known_args()
         self.enable_preprocessing = args.preprocess
         self.nan_replacement = args.nan
         self.normalize_channels = args.normalize_channels
+        self.opacity_channel = args.opacity_channel
 
         file_to_load = args.data
         if file_to_load is None:
@@ -93,6 +99,7 @@ class App:
 
         self.gbc_data = None
         self.rgb_data = None
+        self.opacity_data = None
 
         self.ui = self._build_ui()
         self.load_data(file_to_load)
@@ -102,7 +109,6 @@ class App:
 
     def load_data(self, file_to_load):
         header, data = load_dataset(Path(file_to_load))
-        self.state.component_labels = header
 
         # Handle NaN if provided
         if self.nan_replacement is not None:
@@ -114,10 +120,24 @@ class App:
         # Our sample data has a *lot* of padding.
         data = _remove_padding_uniform(data)
 
+        if self.opacity_channel is not None:
+            # Extract the opacity data
+            opacity_idx = header.index(self.opacity_channel)
+            self.opacity_data = _normalize_data(data[:, :, :, opacity_idx])
+
+            # Set all data less than 80% to 0, and then re-normalize
+            # self.opacity_data[self.opacity_data < 0.8] = 0
+            # self.opacity_data = _normalize_data(self.opacity_data**5)
+
+            header.pop(opacity_idx)
+            data = np.delete(data, opacity_idx, axis=3)
+
+        self.state.component_labels = header
+
         # Remember the data shape (without the multichannel part)
         self.data_shape = data.shape[:-1]
         self.num_channels = data.shape[-1]
-        
+
         self.raw_unpadded_flattened_data = data.reshape(
             np.prod(self.data_shape), self.num_channels
         )
@@ -175,6 +195,11 @@ class App:
         # Only store nonzero data. We will reconstruct the zeros later.
         self.nonzero_data = flattened_data[self.nonzero_indices]
 
+        # Update this for histogram/percent infos
+        self.raw_unpadded_flattened_data = data.reshape(
+            np.prod(self.data_shape), self.num_channels
+        )
+
         # Trigger an update of the data
         self.update_gbc()
 
@@ -220,8 +245,14 @@ class App:
         full_data = np.zeros((np.prod(self.data_shape), 4))
         full_data[self.nonzero_indices, :3] = rgb.T
 
-        # Make nonzero voxels have an alpha of the mean of the channels.
-        full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(axis=1)
+        if self.opacity_data is None:
+            # Make nonzero voxels have an alpha of the mean of the channels.
+            full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(axis=1)
+        else:
+            full_data[self.nonzero_indices, 3] = (
+                self.opacity_data.flatten()[self.nonzero_indices]
+            )
+
         full_data = full_data.reshape((*self.data_shape, 4))
 
         # Set the data on the volume
@@ -308,7 +339,9 @@ class App:
                     focus_range = item["focus_range"]
 
                     array = self.arrays_raw[key]
-                    n_array = np.clip(array, *focus_range)
+                    n_array = array.copy()
+                    n_array[n_array < focus_range[0]] = 0
+                    n_array[n_array > focus_range[1]] = 0
 
                     if self.normalize_channels:
                         n_array = _normalize_data(n_array)
@@ -319,6 +352,10 @@ class App:
 
         # Update rest of pipeline
         data = np.stack(arrays, axis=3)
+
+        if not self.normalize_channels:
+            # Normalize them all together now
+            data = _normalize_data(data)
 
         # Store the data in a flattened form. It is easier to work with.
         flattened_data = data.reshape(np.prod(self.data_shape), len(arrays))
