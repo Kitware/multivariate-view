@@ -125,6 +125,10 @@ class App:
             opacity_idx = header.index(self.opacity_channel)
             self.opacity_data = _normalize_data(data[:, :, :, opacity_idx])
 
+            # Set all data less than 80% to 0, and then re-normalize
+            # self.opacity_data[self.opacity_data < 0.8] = 0
+            # self.opacity_data = _normalize_data(self.opacity_data**5)
+
             header.pop(opacity_idx)
             data = np.delete(data, opacity_idx, axis=3)
 
@@ -335,7 +339,9 @@ class App:
                     focus_range = item["focus_range"]
 
                     array = self.arrays_raw[key]
-                    n_array = np.clip(array, *focus_range)
+                    n_array = array.copy()
+                    n_array[n_array < focus_range[0]] = 0
+                    n_array[n_array > focus_range[1]] = 0
 
                     if self.normalize_channels:
                         n_array = _normalize_data(n_array)
@@ -346,6 +352,10 @@ class App:
 
         # Update rest of pipeline
         data = np.stack(arrays, axis=3)
+
+        if not self.normalize_channels:
+            # Normalize them all together now
+            data = _normalize_data(data)
 
         # Store the data in a flattened form. It is easier to work with.
         flattened_data = data.reshape(np.prod(self.data_shape), len(arrays))
