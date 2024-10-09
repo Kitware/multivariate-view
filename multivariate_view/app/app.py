@@ -191,6 +191,11 @@ class App:
         # Only store nonzero data. We will reconstruct the zeros later.
         self.nonzero_data = flattened_data[self.nonzero_indices]
 
+        # Update this for histogram/percent infos
+        self.raw_unpadded_flattened_data = data.reshape(
+            np.prod(self.data_shape), self.num_channels
+        )
+
         # Trigger an update of the data
         self.update_gbc()
 
