@@ -160,21 +160,11 @@ class App:
                 array = data[:, :, :, idx]
                 min_val = np.nanmin(array)
                 max_val = np.nanmax(array)
-
-                # Remove voxels where all values are 0 from the histogram.
-                histogram_array = array[~all_zero_voxels]
-                hist_count = np.histogram(histogram_array, bins=200)[0].astype(float)
-
-                # Perform log scaling, as that is easier to see. Ignore zeros.
-                zero_counts = np.isclose(hist_count, 0)
-                hist_count[~zero_counts] = np.log10(hist_count[~zero_counts])
-                max_count = hist_count.max()
-                hist = [int(v / max_count * 100) for v in hist_count.tolist()]
                 fields[name] = {
                     "label": name,
                     "data_range": [min_val, max_val],
                     "focus_range": [min_val, max_val],
-                    "histogram": hist,
+                    "histogram": None,
                     "enabled": True,
                     "color": "black",
                 }
@@ -195,13 +185,30 @@ class App:
         # Only store nonzero data. We will reconstruct the zeros later.
         self.nonzero_data = flattened_data[self.nonzero_indices]
 
-        # Update this for histogram/percent infos
-        self.raw_unpadded_flattened_data = data.reshape(
-            np.prod(self.data_shape), self.num_channels
-        )
-
         # Trigger an update of the data
         self.update_gbc()
+
+    def update_histograms(self, use_log_histogram):
+        # histogram always use the full spectrum of the data
+        # TODO: should we then store the two instances (log/non-log) instead of re-calculating ?
+        nonzero_indices = ~np.all(
+            np.isclose(self.raw_unpadded_flattened_data, 0), axis=1
+        )
+        nonzero_data = self.raw_unpadded_flattened_data[nonzero_indices]
+
+        for idx, name in enumerate(self.state.component_labels):
+            histogram_array = nonzero_data[:, idx]
+            hist_count = np.histogram(histogram_array, bins=200)[0].astype(
+                float
+            )
+
+            zero_counts = np.isclose(hist_count, 0)
+            # Perform log scaling, as that is easier to see. Ignore zeros.
+            if use_log_histogram:
+                hist_count[~zero_counts] = np.log10(hist_count[~zero_counts])
+            max_count = hist_count.max()
+            hist = [int(v / max_count * 100) for v in hist_count.tolist()]
+            self.state.data_channels[name]['histogram'] = hist
 
     def update_gbc(self):
         gbc, components = compute_gbc(self.nonzero_data)
@@ -211,6 +218,12 @@ class App:
 
         self.update_bin_data()
         self.update_voxel_colors()
+
+    @change('use_log_histogram')
+    def on_use_log_histogram(self, use_log_histogram, **kwargs):
+        self.update_histograms(use_log_histogram)
+        # make data_channels dirty so that the UI element of the histogram is updated
+        self.state.dirty("data_channels")
 
     @change('w_bins', 'w_sample_size')
     def update_bin_data(self, **kwargs):
@@ -249,9 +262,9 @@ class App:
             # Make nonzero voxels have an alpha of the mean of the channels.
             full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(axis=1)
         else:
-            full_data[self.nonzero_indices, 3] = (
-                self.opacity_data.flatten()[self.nonzero_indices]
-            )
+            full_data[self.nonzero_indices, 3] = self.opacity_data.flatten()[
+                self.nonzero_indices
+            ]
 
         full_data = full_data.reshape((*self.data_shape, 4))
 
@@ -329,6 +342,7 @@ class App:
             if item.get("enabled")
         ]
         arrays = []
+        has_dirty_arrays = False
         for key, item in data_channels.items():
             if item.get("enabled"):
                 if (
@@ -347,25 +361,31 @@ class App:
                         n_array = _normalize_data(n_array)
 
                     self.arrays_rescaled[key] = n_array
+                    has_dirty_arrays = True
 
                 arrays.append(self.arrays_rescaled[key])
 
-        # Update rest of pipeline
-        data = np.stack(arrays, axis=3)
+        if has_dirty_arrays:
+            # Update rest of pipeline
+            data = np.stack(arrays, axis=3)
 
-        if not self.normalize_channels:
-            # Normalize them all together now
-            data = _normalize_data(data)
+            if not self.normalize_channels:
+                # Normalize them all together now
+                data = _normalize_data(data)
 
-        # Store the data in a flattened form. It is easier to work with.
-        flattened_data = data.reshape(np.prod(self.data_shape), len(arrays))
-        self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
+            # Store the data in a flattened form. It is easier to work with.
+            flattened_data = data.reshape(
+                np.prod(self.data_shape), len(arrays)
+            )
+            self.nonzero_indices = ~np.all(
+                np.isclose(flattened_data, 0), axis=1
+            )
 
-        # Only store nonzero data. We will reconstruct the zeros later.
-        self.nonzero_data = flattened_data[self.nonzero_indices]
+            # Only store nonzero data. We will reconstruct the zeros later.
+            self.nonzero_data = flattened_data[self.nonzero_indices]
 
-        # Trigger an update of the data
-        self.update_gbc()
+            # Trigger an update of the data
+            self.update_gbc()
 
     @change("w_rendering_shadow", "w_rendering_bg")
     def on_rendering_settings(
@@ -688,6 +708,17 @@ class App:
                     ):
                         v.VLabel(
                             "Data pre-processing", classes="text-body-2 ml-1"
+                        )
+                        v.VSwitch(
+                            v_model=("use_log_histogram", True),
+                            density='compact',
+                            hide_details=True,
+                            inset=True,
+                            color="green",
+                            classes="ml-2",
+                            label="log scale (histograms)",
+                            true_icon="mdi-check",
+                            false_icon="mdi-close",
                         )
                         v.VDivider(classes="mr-n4")
                         with v.VRow(
