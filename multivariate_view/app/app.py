@@ -152,7 +152,6 @@ class App:
         fields = None
         if self.enable_preprocessing:
             self.arrays_raw = {}
-            self.arrays_rescaled = {}
             fields = {}
 
             all_zero_voxels = np.all(np.isclose(data, 0), axis=3)
@@ -171,7 +170,6 @@ class App:
 
                 # Save array for later processing
                 self.arrays_raw[name] = array
-                self.arrays_rescaled[name] = None
 
         # Provide control on data arrays
         self.state.data_channels = fields
@@ -336,57 +334,58 @@ class App:
 
     @change("data_channels")
     def on_data_change(self, data_channels, **_):
+        if not self.state.array_modified:
+            # No updates were actually made. Just return
+            return
+
         print("data_channels - changed")
         self.state.component_labels = [
             item.get("label")
             for item in data_channels.values()
             if item.get("enabled")
         ]
+
         arrays = []
-        has_dirty_arrays = False
+
+        # Set a voxel to be zero in all channels if one channel
+        # is outside the focus range.
+        set_to_zero = np.zeros(self.data_shape, dtype=bool)
         for key, item in data_channels.items():
             if item.get("enabled"):
-                if (
-                    key == self.state.array_modified
-                    or self.arrays_rescaled.get(key) is None
-                ):
-                    print(f"data_channels - compute rescale for {key}")
-                    focus_range = item["focus_range"]
+                array = self.arrays_raw[key]
 
-                    array = self.arrays_raw[key]
-                    n_array = array.copy()
-                    n_array[n_array < focus_range[0]] = 0
-                    n_array[n_array > focus_range[1]] = 0
+                focus_range = item["focus_range"]
+                set_to_zero[array < focus_range[0]] = True
+                set_to_zero[array > focus_range[1]] = True
 
-                    if self.normalize_channels:
-                        n_array = _normalize_data(n_array)
+                arrays.append(array)
 
-                    self.arrays_rescaled[key] = n_array
-                    has_dirty_arrays = True
+        # Update rest of pipeline
+        data = np.stack(arrays, axis=3)
 
-                arrays.append(self.arrays_rescaled[key])
+        # Set any invalid voxels to zero
+        data[set_to_zero] = 0
+        if self.normalize_channels:
+            # Normalize all channels separately
+            for i in range(data.shape[-1]):
+                data[:, :, :, i] = _normalize_data(data[:, :, :, i])
+        else:
+            # Normalize them all together
+            data = _normalize_data(data)
 
-        if has_dirty_arrays:
-            # Update rest of pipeline
-            data = np.stack(arrays, axis=3)
+        # Store the data in a flattened form. It is easier to work with.
+        flattened_data = data.reshape(
+            np.prod(self.data_shape), len(arrays)
+        )
+        self.nonzero_indices = ~np.all(
+            np.isclose(flattened_data, 0), axis=1
+        )
 
-            if not self.normalize_channels:
-                # Normalize them all together now
-                data = _normalize_data(data)
+        # Only store nonzero data. We will reconstruct the zeros later.
+        self.nonzero_data = flattened_data[self.nonzero_indices]
 
-            # Store the data in a flattened form. It is easier to work with.
-            flattened_data = data.reshape(
-                np.prod(self.data_shape), len(arrays)
-            )
-            self.nonzero_indices = ~np.all(
-                np.isclose(flattened_data, 0), axis=1
-            )
-
-            # Only store nonzero data. We will reconstruct the zeros later.
-            self.nonzero_data = flattened_data[self.nonzero_indices]
-
-            # Trigger an update of the data
-            self.update_gbc()
+        # Trigger an update of the data
+        self.update_gbc()
 
     @change("w_rendering_shadow", "w_rendering_bg")
     def on_rendering_settings(
