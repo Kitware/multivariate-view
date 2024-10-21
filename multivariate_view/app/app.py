@@ -333,6 +333,7 @@ class App:
         self.server.controller.figure_update(_bar_plot(displayed_voxel_means))
 
     @change("data_channels")
+    @change("normalize_ranges")
     def on_data_change(self, data_channels, **_):
         if not self.state.array_modified:
             # No updates were actually made. Just return
@@ -363,8 +364,10 @@ class App:
         # Update rest of pipeline
         data = np.stack(arrays, axis=3)
 
-        # Set any invalid voxels to zero
-        data[set_to_zero] = 0
+        if self.state.normalize_ranges:
+            # Set any invalid voxels to zero before normalizing
+            data[set_to_zero] = 0
+
         if self.normalize_channels:
             # Normalize all channels separately
             for i in range(data.shape[-1]):
@@ -372,6 +375,10 @@ class App:
         else:
             # Normalize them all together
             data = _normalize_data(data)
+
+        if not self.state.normalize_ranges:
+            # The invalid voxels are set to zero after normalizing instead
+            data[set_to_zero] = 0
 
         # Store the data in a flattened form. It is easier to work with.
         flattened_data = data.reshape(
@@ -473,6 +480,7 @@ class App:
     def _build_ui(self):
         self.state.setdefault('lens_center', [0, 0])
         self.state.setdefault("array_modified", '')
+        self.state.setdefault('normalize_ranges', False)
 
         server = self.server
         ctrl = self.ctrl
@@ -729,6 +737,18 @@ class App:
                             color="green",
                             classes="ml-2",
                             label="log scale (histograms)",
+                            true_icon="mdi-check",
+                            false_icon="mdi-close",
+                        )
+                        v.VDivider(classes="mr-n4")
+                        v.VSwitch(
+                            v_model=('normalize_ranges', True),
+                            density='compact',
+                            hide_details=True,
+                            inset=True,
+                            color="green",
+                            classes="ml-2",
+                            label="Rescale channels after range edits",
                             true_icon="mdi-check",
                             false_icon="mdi-close",
                         )
