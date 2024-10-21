@@ -107,6 +107,18 @@ class App:
         if self.server.hot_reload:
             self.ctrl.on_server_reload.add(self._build_ui)
 
+        # Fake table data for now
+        self.state.table_headers = [
+            {"title": "My Name is", "value": "name"},
+            {"title": "Content", "value": "something"},
+        ]
+        self.state.table_content = [
+            {"id": 1, "name": "hello 1", "something": "else 1"},
+            {"id": 2, "name": "hello 2", "something": "else 2"},
+            {"id": 3, "name": "hello 3", "something": "else 3"},
+            {"id": 4, "name": "hello 4", "something": "else 4"},
+        ]
+
     def load_data(self, file_to_load):
         header, data = load_dataset(Path(file_to_load))
 
@@ -381,12 +393,8 @@ class App:
             data[set_to_zero] = 0
 
         # Store the data in a flattened form. It is easier to work with.
-        flattened_data = data.reshape(
-            np.prod(self.data_shape), len(arrays)
-        )
-        self.nonzero_indices = ~np.all(
-            np.isclose(flattened_data, 0), axis=1
-        )
+        flattened_data = data.reshape(np.prod(self.data_shape), len(arrays))
+        self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
 
         # Only store nonzero data. We will reconstruct the zeros later.
         self.nonzero_data = flattened_data[self.nonzero_indices]
@@ -406,6 +414,10 @@ class App:
         else:
             self.volume_view.renderer.SetBackground(0, 0, 0)
         self.ctrl.view_update()
+
+    @change("table_selection")
+    def on_table_selection_change(self, table_selection, **_):
+        print("Table selection", table_selection)
 
     @property
     def state(self):
@@ -549,17 +561,16 @@ class App:
                             )
                             v.VBtn(icon="mdi-crop", value="clip")
                             v.VBtn(
-                                icon="mdi-tune-variant",
-                                value="tune-data",
-                                v_if="data_channels && Object.keys(data_channels).length",
-                            )
-                            v.VBtn(
                                 icon="mdi-sigma",
                                 value="voxel-means",
                             )
                             v.VBtn(
                                 icon="mdi-align-vertical-bottom",
                                 value="voxel-means-plot",
+                            )
+                            v.VBtn(
+                                icon="mdi-table",
+                                value="table",
                             )
 
                         v.VSpacer()
@@ -848,6 +859,27 @@ class App:
                             self.server.controller.figure_update = (
                                 figure.update
                             )
+
+                    # Table (phase selection)
+                    with v.VCard(
+                        flat=True,
+                        v_show="show_control_panel && show_groups.includes('table')",
+                        classes="py-1 pr-4",
+                        v_if="table_content",
+                    ):
+                        v.VLabel("Label Map", classes="text-body-2 ml-1")
+                        v.VDivider(classes="mr-n4")
+                        v.VDataTable(
+                            headers=("table_headers", []),
+                            items=("table_content", None),
+                            density="compact",
+                            item_value="id",
+                            item_selectable=True,
+                            select_strategy="single",  # all / single
+                            show_select=True,
+                            v_model=("table_selection", []),
+                            hide_default_footer=True,
+                        )
 
             # print(layout)
             return layout
