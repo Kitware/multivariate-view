@@ -62,12 +62,28 @@ class App:
             help="Set the specified channel to be opacity only",
             default=None,
         )
+        self.server.cli.add_argument(
+            "--label-map",
+            help="Set a path to a label map file",
+            default=None,
+        )
 
         args, _ = self.server.cli.parse_known_args()
         self.enable_preprocessing = args.preprocess
         self.nan_replacement = args.nan
         self.normalize_channels = args.normalize_channels
         self.opacity_channel = args.opacity_channel
+        self.label_map_file = args.label_map
+        self.label_map = None
+
+        if self.label_map_file is not None:
+            # Load the label map
+            # We assume this is the same shape as the data with
+            # the padding removed.
+            self.label_map = np.load(self.label_map_file)
+
+        # Set this if you want label map names other than "0, 1, 2, ..."
+        self.label_map_names = None
 
         file_to_load = args.data
         if file_to_load is None:
@@ -103,6 +119,7 @@ class App:
 
         self.ui = self._build_ui()
         self.load_data(file_to_load)
+        self.create_table()
 
         if self.server.hot_reload:
             self.ctrl.on_server_reload.add(self._build_ui)
@@ -186,6 +203,61 @@ class App:
         # Trigger an update of the data
         self.update_gbc()
 
+    def create_table(self):
+        if self.label_map is None:
+            # Nothing to do
+            return
+
+        # Fake table data for now
+        table_headers = [{"title": "Name", "value": "name"}]
+        for i, name in enumerate(self.state.component_labels):
+            table_headers.append({
+                "title": f'{name} (%)',
+                "value": str(i),
+                "align": "end",
+            })
+
+        table_content = []
+
+        label_values = np.unique(self.label_map)
+
+        data = self.raw_unpadded_flattened_data.reshape(
+              (*self.data_shape, self.num_channels)
+        )
+        if self.normalize_channels:
+            # Normalize all channels separately
+            for i in range(data.shape[-1]):
+                data[:, :, :, i] = _normalize_data(data[:, :, :, i])
+        else:
+            # Normalize them all together
+            data = _normalize_data(data)
+
+        if self.label_map_names:
+            labels = self.label_map_names
+        else:
+            labels = list(map(str, label_values))
+
+        for name, value in zip(labels, label_values):
+            # Calculate the percent of each element
+            matching_voxels = data[self.label_map == value]
+
+            # Remove voxels that are all close to zero
+            matching_voxels = matching_voxels[
+                ~np.all(np.isclose(matching_voxels, 0), axis=1)]
+
+            mean_values = matching_voxels.mean(axis=0)
+            # Get each mean to add up to 1
+            mean_values /= mean_values.sum()
+
+            row = {"id": value.item(), "name": name}
+            for i in range(len(self.state.component_labels)):
+                row[str(i)] = f'{mean_values[i] * 100:6.2f}'
+
+            table_content.append(row)
+
+        self.state.table_headers = table_headers
+        self.state.table_content = table_content
+
     def update_histograms(self, use_log_histogram):
         # histogram always use the full spectrum of the data
         # TODO: should we then store the two instances (log/non-log) instead of re-calculating ?
@@ -246,6 +318,10 @@ class App:
 
         self.update_volume_data()
 
+    @change(
+        "table_selection",
+        "unselected_opacity_multiplier",
+    )
     def update_volume_data(self, **kwargs):
         if any(x is None for x in (self.rgb_data, self.gbc_data)):
             return
@@ -259,6 +335,12 @@ class App:
         if self.opacity_data is None:
             # Make nonzero voxels have an alpha of the mean of the channels.
             full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(axis=1)
+            if self.state.table_selection:
+                idx = self.state.table_selection[0]
+                # Significantly decrease opacity of non-selected voxels
+                selected_voxels = self.label_map == idx
+                multiplier = self.state.unselected_opacity_multiplier
+                full_data[~selected_voxels.flatten(), 3] *= multiplier
         else:
             full_data[self.nonzero_indices, 3] = self.opacity_data.flatten()[
                 self.nonzero_indices
@@ -381,12 +463,8 @@ class App:
             data[set_to_zero] = 0
 
         # Store the data in a flattened form. It is easier to work with.
-        flattened_data = data.reshape(
-            np.prod(self.data_shape), len(arrays)
-        )
-        self.nonzero_indices = ~np.all(
-            np.isclose(flattened_data, 0), axis=1
-        )
+        flattened_data = data.reshape(np.prod(self.data_shape), len(arrays))
+        self.nonzero_indices = ~np.all(np.isclose(flattened_data, 0), axis=1)
 
         # Only store nonzero data. We will reconstruct the zeros later.
         self.nonzero_data = flattened_data[self.nonzero_indices]
@@ -481,6 +559,7 @@ class App:
         self.state.setdefault('lens_center', [0, 0])
         self.state.setdefault("array_modified", '')
         self.state.setdefault('normalize_ranges', False)
+        self.state.setdefault("unselected_opacity_multiplier", 0.1)
 
         server = self.server
         ctrl = self.ctrl
@@ -549,17 +628,16 @@ class App:
                             )
                             v.VBtn(icon="mdi-crop", value="clip")
                             v.VBtn(
-                                icon="mdi-tune-variant",
-                                value="tune-data",
-                                v_if="data_channels && Object.keys(data_channels).length",
-                            )
-                            v.VBtn(
                                 icon="mdi-sigma",
                                 value="voxel-means",
                             )
                             v.VBtn(
                                 icon="mdi-align-vertical-bottom",
                                 value="voxel-means-plot",
+                            )
+                            v.VBtn(
+                                icon="mdi-table",
+                                value="table",
                             )
 
                         v.VSpacer()
@@ -588,7 +666,7 @@ class App:
                             'unrotated_component_coords',
                             [],
                         ),
-                        size=400,
+                        size=600,
                         rotation=('w_rotation', 0),
                         sample_size=('w_sample_size', 1100),
                         number_of_bins=('w_bins', 6),
@@ -847,6 +925,37 @@ class App:
                             )
                             self.server.controller.figure_update = (
                                 figure.update
+                            )
+
+                    if self.label_map is not None:
+                        # Table (phase selection)
+                        with v.VCard(
+                            flat=True,
+                            v_show="show_control_panel && show_groups.includes('table')",
+                            classes="py-1 pr-4",
+                            v_if="table_content",
+                        ):
+                            v.VLabel("Label Map", classes="text-body-2 ml-1")
+                            v.VDivider(classes="mr-n4")
+                            v.VSlider(
+                                v_model='unselected_opacity_multiplier',
+                                min=0,
+                                max=1,
+                                step=0.01,
+                                density='compact',
+                                prepend_icon="mdi-chart-scatter-plot-hexbin",
+                                messages="Unselected Voxels Opacity Multiplier",
+                            )
+                            v.VDataTable(
+                                headers=("table_headers", []),
+                                items=("table_content", None),
+                                density="compact",
+                                item_value="id",
+                                item_selectable=True,
+                                select_strategy="single",  # all / single
+                                show_select=True,
+                                v_model=("table_selection", []),
+                                hide_default_footer=True,
                             )
 
             # print(layout)
