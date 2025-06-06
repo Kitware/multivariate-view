@@ -5,9 +5,9 @@ import numpy as np
 
 import plotly.graph_objects as go
 
-from trame.app import get_server
+from trame.app import TrameApp
 from trame.assets.remote import download_file_from_google_drive
-from trame.decorators import TrameApp, change, life_cycle
+from trame.decorators import change, life_cycle
 from trame.ui.vuetify3 import VAppLayout
 from trame.widgets import client, html, plotly, vtk, vuetify3 as v
 from multivariate_view.widgets import radvolviz
@@ -32,10 +32,9 @@ EXAMPLE_GOOGLE_DRIVE_ID = '1nI_hzrqbGBypUU7jMbWnF7-PkqNMiwqB'
 EXAMPLE_DATA_REF = 'https://doi.org/10.1038/s43246-022-00259-x'
 
 
-@TrameApp()
-class App:
+class App(TrameApp):
     def __init__(self, server=None):
-        self.server = get_server(server, client_type='vue3')
+        super().__init__(server, client_type='vue3')
 
         # CLI
         self.server.cli.add_argument(
@@ -484,14 +483,6 @@ class App:
         else:
             self.volume_view.renderer.SetBackground(0, 0, 0)
         self.ctrl.view_update()
-
-    @property
-    def state(self):
-        return self.server.state
-
-    @property
-    def ctrl(self):
-        return self.server.controller
 
     @property
     def render_window(self):

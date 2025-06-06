@@ -13,7 +13,7 @@ dependencies = [
   'plotly',
   'requests',
   'scipy',
-  'trame',
+  'trame>=3.10.2',
   'trame-vtk',
   'trame-vuetify',
   'trame-plotly',
