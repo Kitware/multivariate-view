@@ -51,3 +51,7 @@ This example dataset is downloaded automatically and loaded if the application i
 Two of the easiest formats to use are HDF5 and NPZ. For both of these file types, each channel of the volume should have its own dataset at the top level, and each dataset must be identical in shape and datatype. There should be no other datasets present.
 
 If the application is started with `multivariate-view --data /path/to/data.h5`, then all root level datasets will be loaded automatically and visualized.
+
+# Acknowledgements
+
+MultivariateView was developed by Kitware under DOE SBIR Award DE-SC0024765.
