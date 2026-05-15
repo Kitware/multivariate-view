@@ -62,6 +62,12 @@ class App(TrameApp):
             default=None,
         )
         self.server.cli.add_argument(
+            "--opacity-sqrt-max",
+            help="Use sqrt of max channel value for opacity instead of mean",
+            action="store_true",
+            default=False,
+        )
+        self.server.cli.add_argument(
             "--label-map",
             help="Set a path to a label map file",
             default=None,
@@ -72,6 +78,7 @@ class App(TrameApp):
         self.nan_replacement = args.nan
         self.normalize_channels = args.normalize_channels
         self.opacity_channel = args.opacity_channel
+        self.opacity_sqrt_max = args.opacity_sqrt_max
         self.label_map_file = args.label_map
         self.label_map = None
 
@@ -332,8 +339,12 @@ class App(TrameApp):
         full_data[self.nonzero_indices, :3] = rgb.T
 
         if self.opacity_data is None:
-            # Make nonzero voxels have an alpha of the mean of the channels.
-            full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(axis=1)
+            if self.opacity_sqrt_max:
+                full_data[self.nonzero_indices, 3] = np.sqrt(
+                    self.nonzero_data.max(axis=1)
+                )
+            else:
+                full_data[self.nonzero_indices, 3] = self.nonzero_data.mean(axis=1)
             if self.state.table_selection:
                 idx = self.state.table_selection[0]
                 # Significantly decrease opacity of non-selected voxels
